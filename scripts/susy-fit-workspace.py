@@ -1,6 +1,7 @@
 #!/usr/bin/env python2.7
 import argparse, re, sys
 
+
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('yields_file')

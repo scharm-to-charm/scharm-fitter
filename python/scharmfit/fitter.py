@@ -1,114 +1,26 @@
-from stop.bullshit import OutputFilter
-from stop.hists import HistNd
+from scharmfit.utils import OutputFilter
 import h5py
 import os, re
 from os.path import isdir, join, isfile
 from collections import defaultdict, Counter
 import warnings
-import sqlite3
 
 _up_down_syst = {'jes', 'u','c','b','t', 'el', 'mu', 'met'}
-
-def path_from_sr(met_gev, pt_gev, signal_point, tag_config='conf',
-            top='workspaces'):
-    path_tmp = '{top}/{tag}/met{met:.0f}/pt{pt:.0f}/{sp}'
-    return path_tmp.format(
-        tag=tag_config, met=met_gev, pt=pt_gev, sp=signal_point, top=top)
-
-def sr_from_path(path):
-    sr_re = re.compile('([^/]*)/met([0-9]+)/pt([0-9]+)/([^/]*)')
-    tag, mstr, pstr, sp = sr_re.search(path).group(1,2,3,4)
-    return int(mstr), int(pstr), sp, tag
-
-_sql_table = [
-    'tag_config text',
-    'met_gev integer',
-    'pt_gev integer',
-    'signal_point text',
-    'ul_lower float',
-    'ul_mean float',
-    'ul_upper float']
-
-def make_sql(name='all-fit-results.db'):
-    table_spec = ','.join(_sql_table)
-    with sqlite3.connect(name) as conn:
-        conn.execute('create table upperlimits ({})'.format(table_spec))
-
-def insert_sql(met_gev, pt_gev, signal_point, tag_config, upper_limits,
-               name='all-fit-results.db'):
-    col_names = [s.split()[0] for s in _sql_table]
-    ins_tup = (
-        tag_config, met_gev, pt_gev, signal_point,
-        upper_limits['lower'], upper_limits['mean'], upper_limits['upper'])
-    valstr = ','.join(['?']*len(ins_tup))
-    with sqlite3.connect(name, timeout=900) as conn:
-        conn.execute(
-            "insert into upperlimits values ({})".format(valstr), ins_tup)
-
-def _chop_ud(word):
-    for chop in ['up','down']:
-        if word.endswith(chop):
-            return word[:-len(chop)]
-    return word
-
-def get_systematics(base_dir):
-    systs = []
-    for d in os.listdir(base_dir):
-        if isdir(join(base_dir,d)):
-            systs.append(_chop_ud(d))
-    return sorted(set(systs) - {'baseline'})
-
-
-class CountDict(dict):
-    """
-    Stores as (syst, physics, region)
-    """
-    def __init__(self, kin_dir, systematics='all'):
-
-        if systematics == 'all':
-            systematics = _get_systematics(kin_dir)
-
-        def has_systematic(syst):
-            if syst in systematics + ['baseline']:
-                return True
-            if syst.replace('up','') in systematics:
-                return True
-            if syst.replace('down','') in systematics:
-                return True
-            return False
-
-        self.systematics = []
-        for d in os.listdir(kin_dir):
-            if isdir(join(kin_dir,d)):
-                self.systematics.append(d)
-
-        for syst in self.systematics:
-            if not has_systematic(syst):
-                continue
-            tmp = defaultdict(dict)
-            print 'loading {}'.format(syst)
-            agg_path = join(kin_dir, syst, 'aggregate.h5')
-            if not isfile(agg_path):
-                raise OSError("{} not found".format(agg_path))
-            with h5py.File(agg_path, 'r') as h5file:
-                for phys, var_group in h5file.iteritems():
-                    for var, reg_group in var_group.iteritems():
-                        for region, hist in reg_group.iteritems():
-                            if var == 'kinematics':
-                                tmp[syst, phys, region]['sum'] = HistNd(hist)
-                            elif var == 'kinematicWt2':
-                                tmp[syst, phys, region]['wt2'] = HistNd(hist)
-            self.update(tmp)
-
-inf = float('inf')
 
 class Workspace(object):
     '''
     Organizes the building of workspaces, mainly by providing functions to
     transfer from the input yaml file to a RooFit workspace.
     '''
-    fixed_backgrounds = {'diboson'}
+    # -- various definitions (for histfitter and input textfile schema)
+    # histfitter
     meas_name = 'meas'
+
+    # input file
+    fixed_backgrounds = {'other'}
+    baseline_syst = 'none'
+    _nkey = 'n'                  # yield
+    _errkey = 'err'              # stat error
     def __init__(self, counts, systematics, backgrounds):
         import ROOT
         with OutputFilter():
@@ -134,124 +46,137 @@ class Workspace(object):
         self.blinded = True
         self.pseudodata_regions = {}
 
-        # we have to add the channels _after_ adding data
-        # so using pseudodata means we have to save the channels
-        # and add them later
+        # we have to add the channels to the measurement  _after_ adding
+        # data to the channels.
+        # We're using pseudodata, which means we have to save the channels
+        # and add them later.
         self.channels = {}
 
     def set_signal(self, signal_name):
-        valid_signals = set(zip(*self.counts.keys())[1])
-        if not signal_name in valid_signals:
-            possible_sigs = '\n'.join(valid_signals)
-            raise ValueError(
-                '{} not in:\n {}'.format(signal_name, possible_sigs))
         if self.signal_point:
             raise ValueError('tried to overwrite {} with {}'.format(
                     self.signal_point, signal_name))
         self.signal_point = signal_name
         self.meas.SetPOI("mu_{}".format(signal_name))
 
-    def _add_mc_to_channel(self, chan, sr, cutfunc):
+    # ____________________________________________________________________
+    # functions to add samples to the channel
+
+    def _add_mc_to_channel(self, chan, region):
         """
         Adds the signal mc and the backgrounds to this channel.
         Will throw exceptions if the signal isn't set.
         """
+        self._add_signal_to_channel(chan, region)
+
+        for bg in self.backgrounds:
+            self._add_background_to_channel(chan, region, bg)
+
+    def _add_signal_to_channel(self, chan, region):
+        """should be called by _add_mc_to_channel"""
         if self.signal_point:
-            signal = self.hf.Sample(str('_'.join([self.signal_point,sr])))
-            sig_hists = self.counts['baseline', self.signal_point, sr]
-            signal_count = cutfunc(sig_hists['sum'])
+            # name the signal region
+            signal = self.hf.Sample(str('_'.join([self.signal_point,region])))
+
+            # get yield / stat error in SR
+            baseline_syst = self.counts[self.baseline_syst]
+            sig_dict = baseline_syst[region][self.signal_point]
+            signal_count = sig_dict[self._nkey]
             signal.SetValue(signal_count)
-            sig_stat_error = cutfunc(sig_hists['wt2'])**0.5
+            sig_stat_error = sig_dict[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
+
+            # this does something with lumi error... not sure what
             signal.SetNormalizeByTheory(True)
+
+            # set a floating normalization factor
             signal.AddNormFactor('mu_{}'.format(self.signal_point),1,0,2)
             chan.AddSample(signal)
 
-        for bg in self.backgrounds:
-            background = self.hf.Sample('_'.join([sr,bg]))
-            base_count = cutfunc(self.counts['baseline',bg,sr]['sum'])
-            self.region_sums[sr] += base_count
-            if base_count == 0.0:
-                warn_str = ('zero base count found in {}'
-                            ' skipping').format(bg)
-                warnings.warn(warn_str, stacklevel=2)
-                continue
+    def _add_background_to_channel(self, chan, region, bg):
+        background = self.hf.Sample('_'.join([region,bg]))
+        base_vals = self.counts[self.baseline_syst][region][bg]
+        bg_n = base_vals[self._nkey]
+        self.region_sums[region] += bg_n
+        if bg_n == 0.0:
+            warn_str = ('zero base count found in {}'
+                        ' skipping').format(bg)
+            warnings.warn(warn_str, stacklevel=2)
+            return
+        background.SetValue(bg_n)
+        stat_error = base_vals[self._errkey]
+        background.GetHisto().SetBinError(1,stat_error)
+        if not bg in self.fixed_backgrounds:
+            background.AddNormFactor('mu_{}'.format(bg), 1,0,10)
 
-            background.SetValue(base_count)
-            stat_error = cutfunc(self.counts['baseline',bg,sr]['wt2'])**0.5
-            background.GetHisto().SetBinError(1,stat_error)
-            if not bg in self.fixed_backgrounds:
-                background.AddNormFactor('mu_{}'.format(bg), 1,0,10)
+        for syst in self.systematics:
+            def get_syst_count(syst_name):
+                """shortcut to get the right systematic variation"""
+                return self.counts[syst_name][bg][region][self._nkey]
 
-            for syst in self.systematics:
-                if syst in _up_down_syst:
-                    sup_normed = cutfunc(
-                        self.counts[syst + 'up',bg,sr]['sum'])
-                    sdn_normed = cutfunc(
-                        self.counts[syst + 'down',bg,sr]['sum'])
+            if syst in _up_down_syst:
+                sup_normed = get_syst_count(syst + 'up')
+                sdn_normed = get_syst_count(syst + 'down')
 
-                    background.AddOverallSys(
-                        syst, sup_normed / base_count,
-                        sdn_normed / base_count)
-                else:
-                    syst_counts = cutfunc(self.counts[syst,bg,sr]['sum'])
-                    rel_syst = syst_counts / base_count - 1
-                    background.AddOverallSys(
-                        syst, 1 - rel_syst/2, 1 + rel_syst/2)
+                background.AddOverallSys(
+                    syst, sup_normed / bg_n, sdn_normed / bg_n)
+            else:
+                syst_counts = get_syst_count(syst)
+                rel_syst = syst_counts / bg_n - 1
+                background.AddOverallSys(
+                    syst, 1 - rel_syst/2, 1 + rel_syst/2)
 
-            chan.AddSample(background)
+        chan.AddSample(background)
 
-    def add_cr(self, cr, met_cut, ljpt_cut):
-        def cut_hist(hist):
-            m_cut = (met_cut,inf)
-            j_cut = (ljpt_cut,inf)
-            return hist['met'].slice(*m_cut)['leadingJetPt'].slice(*j_cut)
+    # ____________________________________________________________________
+    # top level methods to set control / signal regions
 
+    def add_cr(self, cr):
         chan = self.hf.Channel(cr)
-        data_count = cut_hist(self.counts['baseline','data',cr]['sum'])
         if self.do_pseudodata:
             self.pseudodata_regions[cr] = chan
         else:
-            chan.SetData(data_count)
+            data_count = self.counts[self.baseline_syst]['data'][cr]
+            chan.SetData(data_count[self._nkey])
+        # ACHTUNG: not at all sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
-
-        self._add_mc_to_channel(chan, cr, cut_hist)
-
+        self._add_mc_to_channel(chan, cr)
         self.channels[cr] = chan
 
     def add_sr(self, sr, met_cut, ljpt_cut):
-        def cut_hist(hist):
-            m_cut = (met_cut,inf)
-            j_cut = (ljpt_cut,inf)
-            return hist['met'].slice(*m_cut)['leadingJetPt'].slice(*j_cut)
-
         chan = self.hf.Channel(sr)
         if self.blinded:
             self.pseudodata_regions[sr] = chan
         else:
-            data_count = cut_hist(self.counts['baseline','data',sr]['sum'])
-            chan.SetData(data_count)
+            data_count = self.counts[self.baseline_syst]['data'][sr]
+            chan.SetData(data_count[self._nkey])
+        # ACHTUNG: again, not sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
-
         self._add_mc_to_channel(chan, sr, cut_hist)
-
         self.channels[sr] = chan
-
 
     def save_workspace(self, results_dir='results', prefix='stop',
                        verbose=False):
+        # if we haven't set a signal point, need to set a dummy
+        # (otherwise something will crash)
         if not self.signal_point:
             self.meas.SetPOI("mu_SIG")
         if not isdir(results_dir):
             os.mkdir(results_dir)
 
+        # we actually build the measurement here
         for chan_name, channel in self.channels.iteritems():
+            # add the pseudodata regions
             if chan_name in self.pseudodata_regions:
                 pseudo_count = self.region_sums[chan_name]
                 channel.SetData(pseudo_count)
             self.meas.AddChannel(channel)
 
+        # don't want to save the output files in the current dir
         self.meas.SetOutputFilePrefix(join(results_dir,prefix))
+
+        # Set up an output filter (most of the output seems pretty
+        # useless)
         pass_strings = ['ERROR:','WARNING:']
         if verbose:
             pass_strings.append('INFO:')
@@ -300,3 +225,22 @@ class UpperLimitCalc(object):
         upper_limit = inverted.GetExpectedUpperLimit(1)
         return lower_limit, mean_limit, upper_limit
 
+# __________________________________________________________________________
+# may not be needed
+
+def _chop_ud(word):
+    for chop in ['up','down']:
+        if word.endswith(chop):
+            return word[:-len(chop)]
+    return word
+
+def _path_from_sr(met_gev, pt_gev, signal_point, tag_config='conf',
+            top='workspaces'):
+    path_tmp = '{top}/{tag}/met{met:.0f}/pt{pt:.0f}/{sp}'
+    return path_tmp.format(
+        tag=tag_config, met=met_gev, pt=pt_gev, sp=signal_point, top=top)
+
+def _sr_from_path(path):
+    sr_re = re.compile('([^/]*)/met([0-9]+)/pt([0-9]+)/([^/]*)')
+    tag, mstr, pstr, sp = sr_re.search(path).group(1,2,3,4)
+    return int(mstr), int(pstr), sp, tag

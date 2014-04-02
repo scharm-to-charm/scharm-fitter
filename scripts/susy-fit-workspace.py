@@ -1,9 +1,12 @@
-import argparse, re
+#!/usr/bin/env python2.7
+import argparse, re, sys
 
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('yields_file')
     parser.add_argument('-y','--fit-config', required=True)
+    args = parser.parse_args(sys.argv[1:])
+    _multispaces(args)
 
 def _get_sp(proc):
     """regex search for signal points"""
@@ -55,3 +58,5 @@ def _book_signal_point(counts, signal_point):
     fit.save_workspace(out_dir)
     ROOT.gDirectory.GetList().Delete()
 
+if __name__ == '__main__':
+    run()

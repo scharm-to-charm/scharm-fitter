@@ -1,3 +1,5 @@
+"""Module containing fitting machinery"""
+
 from scharmfit.utils import OutputFilter
 import h5py
 import os, re
@@ -12,10 +14,10 @@ import warnings
 _up_down_syst = {'jes', 'u','c','b','t', 'el', 'mu', 'met'}
 
 class Workspace(object):
-    '''
+    """
     Organizes the building of workspaces, mainly by providing functions to
     transfer from the input yaml file to a RooFit workspace.
-    '''
+    """
     # -- various definitions (for histfitter and input textfile schema)
     # histfitter
     meas_name = 'meas'
@@ -23,8 +25,9 @@ class Workspace(object):
     # input file
     fixed_backgrounds = {'other'}
     baseline_syst = 'none'
-    _nkey = 'n'                  # yield
-    _errkey = 'err'              # stat error
+    # number and error are stored as first and second entry
+    _nkey = 0                  # yield
+    _errkey = 1                # stat error
     def __init__(self, counts, systematics, backgrounds):
         import ROOT
         with OutputFilter():
@@ -64,7 +67,7 @@ class Workspace(object):
         if self.do_pseudodata:
             self.pseudodata_regions[cr] = chan
         else:
-            data_count = self.counts[self.baseline_syst]['data'][cr]
+            data_count = self.counts[self.baseline_syst][cr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: not at all sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
@@ -76,7 +79,7 @@ class Workspace(object):
         if self.blinded:
             self.pseudodata_regions[sr] = chan
         else:
-            data_count = self.counts[self.baseline_syst]['data'][sr]
+            data_count = self.counts[self.baseline_syst][sr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
@@ -101,17 +104,22 @@ class Workspace(object):
         self._add_signal_to_channel(chan, region)
 
         for bg in self.backgrounds:
+            warnings.warn('here ' + bg)
             self._add_background_to_channel(chan, region, bg)
 
     def _add_signal_to_channel(self, chan, region):
         """should be called by _add_mc_to_channel"""
         if self.signal_point:
             # name the signal region
-            signal = self.hf.Sample(str('_'.join([self.signal_point,region])))
+            signal = self.hf.Sample('_'.join([self.signal_point,region]))
 
             # get yield / stat error in SR
             baseline_syst = self.counts[self.baseline_syst]
-            sig_dict = baseline_syst[region][self.signal_point]
+
+            # signal points don't have to be saved in the yaml file
+            # if they are missing it means 0.0 (both yield and stat error)
+            sig_dict = baseline_syst[region].get(self.signal_point,[0.0]*2)
+
             signal_count = sig_dict[self._nkey]
             signal.SetValue(signal_count)
             sig_stat_error = sig_dict[self._errkey]
@@ -123,28 +131,34 @@ class Workspace(object):
             # set a floating normalization factor
             signal.AddNormFactor('mu_{}'.format(self.signal_point),1,0,2)
             chan.AddSample(signal)
+            self._signal_sample_hack = signal
+            warnings.warn(self.signal_point)
 
     def _add_background_to_channel(self, chan, region, bg):
         background = self.hf.Sample('_'.join([region,bg]))
-        base_vals = self.counts[self.baseline_syst][region][bg]
+        base_vals = self.counts[self.baseline_syst][region].get(bg,[0.0]*2)
         bg_n = base_vals[self._nkey]
-        self.region_sums[region] += bg_n
+
+        # Sometimes backgrounds are empty in regions. This isn't the
+        # end of the world, but it's weird, so we print an error.
         if bg_n == 0.0:
-            warn_str = ('zero base count found in {}'
-                        ' skipping').format(bg)
+            warn_str = (
+                'zero base count found in {} skipping').format(bg)
             warnings.warn(warn_str, stacklevel=2)
             return
+        self.region_sums[region] += bg_n
         background.SetValue(bg_n)
         stat_error = base_vals[self._errkey]
         background.GetHisto().SetBinError(1,stat_error)
         if not bg in self.fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,10)
 
-        for syst in self.systematics:
-            def get_syst_count(syst_name):
-                """shortcut to get the right systematic variation"""
-                return self.counts[syst_name][bg][region][self._nkey]
+        # --- add systematics ---
+        def get_syst_count(syst_name):
+            """shortcut to get the right systematic variation"""
+            return self.counts[syst_name][bg][region][self._nkey]
 
+        for syst in self.systematics:
             if syst in _up_down_syst:
                 sup_normed = get_syst_count(syst + 'up')
                 sdn_normed = get_syst_count(syst + 'down')
@@ -157,6 +171,7 @@ class Workspace(object):
                 background.AddOverallSys(
                     syst, 1 - rel_syst/2, 1 + rel_syst/2)
 
+        self
         chan.AddSample(background)
 
     # _________________________________________________________________
@@ -188,10 +203,11 @@ class Workspace(object):
         if verbose:
             pass_strings.append('INFO:')
         self.meas.SetExportOnly(True)
-        with OutputFilter(
-            accept_re='({})'.format('|'.join(pass_strings)),
-            veto_words={'nominalLumi'}):
-            workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
+        workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
+        # with OutputFilter(
+        #     accept_re='({})'.format('|'.join(pass_strings)),
+        #     veto_words={'nominalLumi'}):
+        #     workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
 
 class UpperLimitCalc(object):
     def __init__(self):

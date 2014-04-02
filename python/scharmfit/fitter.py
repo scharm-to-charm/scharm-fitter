@@ -114,18 +114,20 @@ class Workspace(object):
     def _add_signal_to_channel(self, chan, region):
         """should be called by _add_mc_to_channel"""
         if self.signal_point:
-            # name the signal region
-            sname = '_'.join([self.signal_point,region])
-            signal = self.hf.Sample(sname)
-
             # get yield / stat error in SR
             baseline_syst = self.counts[self.baseline_syst]
 
             # signal points don't have to be saved in the yaml file
             # if they are missing it means 0.0 (both yield and stat error)
             sig_dict = baseline_syst[region].get(self.signal_point,[0.0]*2)
-
             signal_count = sig_dict[self._nkey]
+            if signal_count == 0.0:
+                warnings.warn('no signal here...')
+                return
+            # name the signal region
+            sname = '_'.join([self.signal_point,region])
+            signal = self.hf.Sample(sname)
+
             signal.SetValue(signal_count)
             sig_stat_error = sig_dict[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
@@ -175,9 +177,7 @@ class Workspace(object):
                 background.AddOverallSys(
                     syst, 1 - rel_syst/2, 1 + rel_syst/2)
 
-        background.AddOverallSys('dummy', 1.5, 0.5)
         chan.AddSample(background)
-
 
     # _________________________________________________________________
     # save the workspace

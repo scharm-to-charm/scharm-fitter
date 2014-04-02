@@ -5,6 +5,10 @@ from os.path import isdir, join, isfile
 from collections import defaultdict, Counter
 import warnings
 
+# NOTE: these systematics have an 'up' and 'down' variant.
+# some work is needed with the b-tagging systematics: we should
+# be adding the uncertainties in quadrature. As it stands, they are being
+# treated as seperate parameters.
 _up_down_syst = {'jes', 'u','c','b','t', 'el', 'mu', 'met'}
 
 class Workspace(object):
@@ -51,6 +55,33 @@ class Workspace(object):
         # We're using pseudodata, which means we have to save the channels
         # and add them later.
         self.channels = {}
+
+    # ____________________________________________________________________
+    # top level methods to set control / signal regions
+
+    def add_cr(self, cr):
+        chan = self.hf.Channel(cr)
+        if self.do_pseudodata:
+            self.pseudodata_regions[cr] = chan
+        else:
+            data_count = self.counts[self.baseline_syst]['data'][cr]
+            chan.SetData(data_count[self._nkey])
+        # ACHTUNG: not at all sure what this does
+        chan.SetStatErrorConfig(0.05, "Poisson")
+        self._add_mc_to_channel(chan, cr)
+        self.channels[cr] = chan
+
+    def add_sr(self, sr, met_cut, ljpt_cut):
+        chan = self.hf.Channel(sr)
+        if self.blinded:
+            self.pseudodata_regions[sr] = chan
+        else:
+            data_count = self.counts[self.baseline_syst]['data'][sr]
+            chan.SetData(data_count[self._nkey])
+        # ACHTUNG: again, not sure what this does
+        chan.SetStatErrorConfig(0.05, "Poisson")
+        self._add_mc_to_channel(chan, sr, cut_hist)
+        self.channels[sr] = chan
 
     def set_signal(self, signal_name):
         if self.signal_point:
@@ -128,32 +159,8 @@ class Workspace(object):
 
         chan.AddSample(background)
 
-    # ____________________________________________________________________
-    # top level methods to set control / signal regions
-
-    def add_cr(self, cr):
-        chan = self.hf.Channel(cr)
-        if self.do_pseudodata:
-            self.pseudodata_regions[cr] = chan
-        else:
-            data_count = self.counts[self.baseline_syst]['data'][cr]
-            chan.SetData(data_count[self._nkey])
-        # ACHTUNG: not at all sure what this does
-        chan.SetStatErrorConfig(0.05, "Poisson")
-        self._add_mc_to_channel(chan, cr)
-        self.channels[cr] = chan
-
-    def add_sr(self, sr, met_cut, ljpt_cut):
-        chan = self.hf.Channel(sr)
-        if self.blinded:
-            self.pseudodata_regions[sr] = chan
-        else:
-            data_count = self.counts[self.baseline_syst]['data'][sr]
-            chan.SetData(data_count[self._nkey])
-        # ACHTUNG: again, not sure what this does
-        chan.SetStatErrorConfig(0.05, "Poisson")
-        self._add_mc_to_channel(chan, sr, cut_hist)
-        self.channels[sr] = chan
+    # _________________________________________________________________
+    # save the workspace
 
     def save_workspace(self, results_dir='results', prefix='stop',
                        verbose=False):

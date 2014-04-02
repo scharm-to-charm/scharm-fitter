@@ -34,7 +34,11 @@ def _multispaces(config):
     with open(config.fit_config) as yml:
         fit_configs = yaml.load(yml)
 
+    # we _should_ loop ovar all signal points (also potentially over multiple
+    # fit configurations). Note that memory leaks in HistFactory make this
+    # difficult.
     signal_point = signal_points[0]
+
     print 'booking signal point {}'.format(signal_point)
     _book_signal_point(yields, signal_point)
 

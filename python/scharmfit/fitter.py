@@ -59,6 +59,10 @@ class Workspace(object):
         # and add them later.
         self.channels = {}
 
+        # for some reason ROOT wants us to hold on to all the samples
+        # otherwise it segfaults... go figure.
+        self._hack_samples = {}
+
     # ____________________________________________________________________
     # top level methods to set control / signal regions
 
@@ -111,7 +115,8 @@ class Workspace(object):
         """should be called by _add_mc_to_channel"""
         if self.signal_point:
             # name the signal region
-            signal = self.hf.Sample('_'.join([self.signal_point,region]))
+            sname = '_'.join([self.signal_point,region])
+            signal = self.hf.Sample(sname)
 
             # get yield / stat error in SR
             baseline_syst = self.counts[self.baseline_syst]
@@ -131,11 +136,10 @@ class Workspace(object):
             # set a floating normalization factor
             signal.AddNormFactor('mu_{}'.format(self.signal_point),1,0,2)
             chan.AddSample(signal)
-            self._signal_sample_hack = signal
-            warnings.warn(self.signal_point)
 
     def _add_background_to_channel(self, chan, region, bg):
-        background = self.hf.Sample('_'.join([region,bg]))
+        sname = '_'.join([region,bg])
+        background = self.hf.Sample(sname)
         base_vals = self.counts[self.baseline_syst][region].get(bg,[0.0]*2)
         bg_n = base_vals[self._nkey]
 
@@ -171,8 +175,9 @@ class Workspace(object):
                 background.AddOverallSys(
                     syst, 1 - rel_syst/2, 1 + rel_syst/2)
 
-        self
+        background.AddOverallSys('dummy', 1.5, 0.5)
         chan.AddSample(background)
+
 
     # _________________________________________________________________
     # save the workspace

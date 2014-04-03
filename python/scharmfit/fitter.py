@@ -30,7 +30,7 @@ class Workspace(object):
     _errkey = 1                # stat error
     def __init__(self, counts, systematics, backgrounds):
         import ROOT
-        with OutputFilter():
+        with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
 
         self.counts = counts

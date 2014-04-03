@@ -42,11 +42,18 @@ class OutputFilter(object):
         os.close(self.old_err)
         self.temp.seek(0)
         for line in self.temp:
-            veto = set(line.split()) & self.veto_words
+            if self._should_veto(line):
+                continue
             accept = set(line.split()) & self.accept_words
             if self.re is not None:
                 re_found = self.re.search(line)
             else:
                 re_found = False
-            if not veto and (accept or re_found):
+            if accept or re_found:
                 sys.stderr.write(line)
+
+    def _should_veto(self, line):
+        for veto in self.veto_words:
+            if veto in line:
+                return True
+        return False

@@ -59,10 +59,6 @@ class Workspace(object):
         # and add them later.
         self.channels = {}
 
-        # for some reason ROOT wants us to hold on to all the samples
-        # otherwise it segfaults... go figure.
-        self._hack_samples = {}
-
     # ____________________________________________________________________
     # top level methods to set control / signal regions
 
@@ -78,7 +74,7 @@ class Workspace(object):
         self._add_mc_to_channel(chan, cr)
         self.channels[cr] = chan
 
-    def add_sr(self, sr, met_cut, ljpt_cut):
+    def add_sr(self, sr):
         chan = self.hf.Channel(sr)
         if self.blinded:
             self.pseudodata_regions[sr] = chan
@@ -87,7 +83,7 @@ class Workspace(object):
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
-        self._add_mc_to_channel(chan, sr, cut_hist)
+        self._add_mc_to_channel(chan, sr)
         self.channels[sr] = chan
 
     def set_signal(self, signal_name):
@@ -118,17 +114,20 @@ class Workspace(object):
 
             # signal points don't have to be saved in the yaml file
             # if they are missing it means 0.0 (both yield and stat error)
-            sig_dict = baseline_syst[region].get(self.signal_point,[0.0]*2)
-            signal_count = sig_dict[self._nkey]
-            if signal_count == 0.0:
-                warnings.warn('no signal here...')
+            if not self.signal_point in baseline_syst[region]:
+                warnings.warn('no signal point {} in {}, skipping'.format(
+                        self.signal_point, region), stacklevel=4)
                 return
-            # name the signal region
+
+            # If we're this far, we can create the signal sample
             sname = '_'.join([self.signal_point,region])
             signal = self.hf.Sample(sname)
 
+            # The signal yield is a list with two entries (yield, stat_error)
+            sig_yield = baseline_syst[region][self.signal_point]
+            signal_count = sig_yield[self._nkey]
             signal.SetValue(signal_count)
-            sig_stat_error = sig_dict[self._errkey]
+            sig_stat_error = sig_yield[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
 
             # this does something with lumi error... not sure what
@@ -139,24 +138,17 @@ class Workspace(object):
             chan.AddSample(signal)
 
     def _add_background_to_channel(self, chan, region, bg):
+        base_vals = self.counts[self.baseline_syst][region][bg]
+        bg_n = base_vals[self._nkey]
+        # region sums are needed for blinded results
+        self.region_sums[region] += bg_n
         sname = '_'.join([region,bg])
         background = self.hf.Sample(sname)
-        base_vals = self.counts[self.baseline_syst][region].get(bg,[0.0]*2)
-        bg_n = base_vals[self._nkey]
-
-        # Sometimes backgrounds are empty in regions. This isn't the
-        # end of the world, but it's weird, so we print an error.
-        if bg_n == 0.0:
-            warn_str = (
-                'zero base count found in {} skipping').format(bg)
-            warnings.warn(warn_str, stacklevel=2)
-            return
-        self.region_sums[region] += bg_n
         background.SetValue(bg_n)
         stat_error = base_vals[self._errkey]
         background.GetHisto().SetBinError(1,stat_error)
         if not bg in self.fixed_backgrounds:
-            background.AddNormFactor('mu_{}'.format(bg), 1,0,10)
+            background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
         # --- add systematics ---
         def get_syst_count(syst_name):
@@ -176,12 +168,15 @@ class Workspace(object):
                 background.AddOverallSys(
                     syst, 1 - rel_syst/2, 1 + rel_syst/2)
 
+        # NOTE: we'll probably have to hack in a lot more systematics here
+        # by hand...
+
         chan.AddSample(background)
 
     # _________________________________________________________________
     # save the workspace
 
-    def save_workspace(self, results_dir='results', prefix='stop',
+    def save_workspace(self, results_dir='results', prefix='scharm',
                        verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
@@ -201,17 +196,41 @@ class Workspace(object):
         # don't want to save the output files in the current dir
         self.meas.SetOutputFilePrefix(join(results_dir,prefix))
 
-        # Set up an output filter (most of the output seems pretty
-        # useless)
-        pass_strings = ['ERROR:','WARNING:']
-        if verbose:
-            pass_strings.append('INFO:')
+        # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
-        workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
-        # with OutputFilter(
-        #     accept_re='({})'.format('|'.join(pass_strings)),
-        #     veto_words={'nominalLumi'}):
-        #     workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
+
+        # NOTE: the lines immediately below could be cleaner than the
+        # hack further down, but the first solution segfaults for
+        # mysterious reasons. Assuming we don't _really_ care how the
+        # fit works, we should just use the hack further down.  (if we
+        # want to know what we're doing we shouldn't be using RooFit
+        # in the first place...)
+
+        # POSSIBLY CLEANER SOLUTION
+        # from ROOT import TFile
+        # h2ws = self.hf.HistoToWorkspaceFactoryFast(self.meas)
+        # ws = h2ws.MakeCombinedModel(self.meas)
+        # out = TFile(join(results_dir, 'combined.root'), 'recreate')
+        # ws.Write()
+        # out.close()
+
+        # HACK SOLUTION (which we got from HistFitter)
+        # First set up an output filter (most of the output seems pretty
+        # useless).
+        # There are a bunch of errors saying the nominal lumi has been
+        # set twice, which seem harmless.  Also somc stuff about
+        # missing a parameter of interest in the non-combined
+        # workspaces, which seems harmless since we're only using the
+        # combined one.
+        pass_strings = ['ERROR:','WARNING:']
+        filter_args = dict(
+            accept_re='({})'.format('|'.join(pass_strings)),
+            veto_words={
+                'nominalLumi',
+                "Can't find parameter of interest:"})
+
+        with OutputFilter(**filter_args):
+            workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
 
 class UpperLimitCalc(object):
     def __init__(self):

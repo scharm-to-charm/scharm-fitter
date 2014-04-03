@@ -34,7 +34,7 @@ def _multispaces(config):
     fit_configs = _get_config(config.fit_config, yields)
 
     signal_points, bgs = _get_signal_points_and_backgrounds(yields)
-    print bgs
+    print 'using backgrounds: {}'.format(', '.join(bgs))
 
     # we _should_ loop ovar all signal points (also potentially over multiple
     # fit configurations). Note that memory leaks in HistFactory make this

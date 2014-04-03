@@ -108,7 +108,6 @@ class Workspace(object):
         self._add_signal_to_channel(chan, region)
 
         for bg in self.backgrounds:
-            warnings.warn('here ' + bg)
             self._add_background_to_channel(chan, region, bg)
 
     def _add_signal_to_channel(self, chan, region):

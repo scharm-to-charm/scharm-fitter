@@ -2,7 +2,7 @@
 
 from scharmfit.utils import OutputFilter
 import h5py
-import os, re
+import os, re, glob
 from os.path import isdir, join, isfile
 from collections import defaultdict, Counter
 import warnings
@@ -115,8 +115,8 @@ class Workspace(object):
             # signal points don't have to be saved in the yaml file
             # if they are missing it means 0.0 (both yield and stat error)
             if not self.signal_point in baseline_syst[region]:
-                warnings.warn('no signal point {} in {}, skipping'.format(
-                        self.signal_point, region), stacklevel=4)
+                # warnings.warn('no signal point {} in {}, skipping'.format(
+                #         self.signal_point, region), stacklevel=4)
                 return
 
             # If we're this far, we can create the signal sample
@@ -176,8 +176,7 @@ class Workspace(object):
     # _________________________________________________________________
     # save the workspace
 
-    def save_workspace(self, results_dir='results', prefix='scharm',
-                       verbose=False):
+    def save_workspace(self, results_dir='results',verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
         if not self.signal_point:
@@ -194,7 +193,7 @@ class Workspace(object):
             self.meas.AddChannel(channel)
 
         # don't want to save the output files in the current dir
-        self.meas.SetOutputFilePrefix(join(results_dir,prefix))
+        self.meas.SetOutputFilePrefix(join(results_dir,self.signal_point))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
@@ -231,6 +230,15 @@ class Workspace(object):
 
         with OutputFilter(**filter_args):
             workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
+        self._cleanup_results_dir(results_dir)
+
+    def _cleanup_results_dir(self, results_dir):
+        """Delete HistFactory byproducts that we don't need"""
+        good_tmp = join(results_dir, '*_combined_{meas}_model.root')
+        good_files = glob.glob(good_tmp.format(meas=self.meas_name))
+        for trash in glob.glob(join(results_dir,'*')):
+            if not trash in good_files:
+                os.remove(trash)
 
 class UpperLimitCalc(object):
     def __init__(self):

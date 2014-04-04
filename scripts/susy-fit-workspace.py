@@ -39,10 +39,9 @@ def _multispaces(config):
     # we _should_ loop ovar all signal points (also potentially over multiple
     # fit configurations). Note that memory leaks in HistFactory make this
     # difficult.
-    signal_point = signal_points[0]
-
-    print 'booking signal point {}'.format(signal_point)
-    _book_signal_point(yields, signal_point, fit_configs['default'], bgs)
+    for signal_point in signal_points:
+        print 'booking signal point {}'.format(signal_point)
+        _book_signal_point(yields, signal_point, fit_configs['default'], bgs)
 
 def _book_signal_point(counts, signal_point, fit_config, backgrounds):
     import ROOT
@@ -58,7 +57,7 @@ def _book_signal_point(counts, signal_point, fit_config, backgrounds):
     sr = fit_config['signal_region']
     fit.add_sr(sr)
 
-    out_dir = 'test-output'
+    out_dir = 'workspaces'
     if not isdir(out_dir):
         os.makedirs(out_dir)
 
@@ -80,17 +79,17 @@ def _get_sp(proc):
 
 def _get_signal_points_and_backgrounds(yields):
     # assume structure {syst: {proc: <counts>, ...}, ...}
-    signal_points = []
+    signal_points = set()
     backgrounds = set()
     for regdic in yields.itervalues():
         for procdic in regdic.itervalues():
             for proc in procdic:
                 sp = _get_sp(proc)
                 if sp:
-                    signal_points.append(sp)
+                    signal_points.add(sp)
                 elif proc not in {'data'}:
                     backgrounds.add(proc)
-    return signal_points, list(backgrounds)
+    return list(signal_points), list(backgrounds)
 
 def _get_config(cfg_name, yields_dict):
     """gets / generates the fit config file"""

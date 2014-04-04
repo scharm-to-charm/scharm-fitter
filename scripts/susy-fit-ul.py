@@ -5,13 +5,14 @@ Workspace generator for scharm to charm search.
 import yaml
 from os.path import join
 import argparse, re, sys, glob
+from scharmfit.fitter import UpperLimitCalc
 
 def run():
     d = '(default: %(default)s)'
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('workspace_dir')
     parser.add_argument(
-        '-o','output_file', default='upper-limits.yml', help=d)
+        '-o','--output-file', default='upper-limits.yml', help=d)
     config = parser.parse_args(sys.argv[1:])
     _get_upper_limit(config)
 
@@ -25,7 +26,7 @@ def _get_upper_limit(config):
         out_yml.write(yaml.dump(all_pts))
 
 _sp_re = re.compile('scharm-([0-9]+)-([0-9]+)_combined')
-def _ul_from_workspace(workspace_name, yaml_dir):
+def _ul_from_workspace(workspace_name):
     ul_calc = UpperLimitCalc()
     lower_limit, mean_limit, upper_limit = ul_calc.lim_range(workspace_name)
     schs, lsps = _sp_re.search(workspace_name).group(1,2)
@@ -38,3 +39,5 @@ def _ul_from_workspace(workspace_name, yaml_dir):
         }
     return ul_dict
 
+if __name__ == '__main__':
+    run()

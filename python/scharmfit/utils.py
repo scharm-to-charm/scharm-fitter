@@ -16,6 +16,17 @@ def make_dir_if_none(hists_dir):
         else:
             raise
 
+def load_susyfit():
+    """
+    Loads the root interfaces with HistFitter
+    """
+    from distutils import spawn
+    from os.path import dirname
+    hf = dirname(spawn.find_executable('HistFitter.py'))
+    import ROOT
+    with OutputFilter(accept_re='ERROR'):
+        ROOT.gSystem.Load('{}/../lib/libSusyFitter.so'.format(hf))
+
 class OutputFilter(object):
     """
     Workaround filter for annoying ROOT errors.

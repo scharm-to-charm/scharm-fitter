@@ -250,7 +250,7 @@ class UpperLimitCalc(object):
         """
         returns a 3-tuple of limits
         """
-        from pyroot import utils
+        from scharmfit import utils
         utils.load_susyfit()
         from ROOT import Util
         from ROOT import RooStats

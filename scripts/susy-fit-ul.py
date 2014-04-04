@@ -1,6 +1,7 @@
 #!/usr/bin/env python2.7
 """
-Workspace generator for scharm to charm search.
+Upper limit calculator scharm to charm search. Takes a directory of
+workspaces as an input.
 """
 import yaml
 from os.path import join

@@ -240,10 +240,15 @@ class Workspace(object):
             if not trash in good_files:
                 os.remove(trash)
 
+# __________________________________________________________________________
+# limit calculators
+
 class UpperLimitCalc(object):
+    """Calculates the upper limit min, mean, and max values"""
     def __init__(self):
         """
-        for now has no init...
+        for now has no init... In the future we may set things like
+        the fit method (use toys, asymptotic, CLs vs whatever...)
         """
         pass
     def lim_range(self, workspace_name):

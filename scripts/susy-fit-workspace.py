@@ -11,6 +11,7 @@ from itertools import chain
 import yaml
 import warnings
 from scharmfit.fitter import Workspace
+from scharmfit.fitter import get_signal_points_and_backgrounds
 
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -33,7 +34,7 @@ def _multispaces(config):
     # get / generate the fit configuration
     fit_configs = _get_config(config.fit_config, yields)
 
-    signal_points, bgs = _get_signal_points_and_backgrounds(yields)
+    signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
 
     # we _should_ loop ovar all signal points (also potentially over multiple
@@ -43,13 +44,11 @@ def _multispaces(config):
         print 'booking signal point {}'.format(signal_point)
         _book_signal_point(yields, signal_point, fit_configs['default'], bgs)
 
-def _book_signal_point(counts, signal_point, fit_config, backgrounds):
+def _book_signal_point(yields, signal_point, fit_config, backgrounds):
     import ROOT
-    # TODO: add more systematics
-    systematics = []
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
-    fit = Workspace(counts, systematics, backgrounds)
+    fit = Workspace(yields, backgrounds)
     fit.set_signal(signal_point)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
@@ -66,30 +65,6 @@ def _book_signal_point(counts, signal_point, fit_config, backgrounds):
 
 # _______________________________________________________________________
 # helpers
-
-def _get_sp(proc):
-    """regex search for signal points"""
-    sig_finder = re.compile('scharm-([0-9]+)-([0-9]+)')
-    try:
-        schstr, lspstr = sig_finder.search(proc).groups()
-    except AttributeError:
-        return None
-    # return int(schstr), int(lspstr)
-    return proc
-
-def _get_signal_points_and_backgrounds(yields):
-    # assume structure {syst: {proc: <counts>, ...}, ...}
-    signal_points = set()
-    backgrounds = set()
-    for regdic in yields.itervalues():
-        for procdic in regdic.itervalues():
-            for proc in procdic:
-                sp = _get_sp(proc)
-                if sp:
-                    signal_points.add(sp)
-                elif proc not in {'data'}:
-                    backgrounds.add(proc)
-    return list(signal_points), list(backgrounds)
 
 def _get_config(cfg_name, yields_dict):
     """gets / generates the fit config file"""

@@ -6,12 +6,15 @@ import os, re, glob
 from os.path import isdir, join, isfile
 from collections import defaultdict, Counter
 import warnings
+from itertools import chain
 
 # NOTE: these systematics have an 'up' and 'down' variant.
 # some work is needed with the b-tagging systematics: we should
 # be adding the uncertainties in quadrature. As it stands, they are being
 # treated as seperate parameters.
 _up_down_syst = {'jes', 'u','c','b','t', 'el', 'mu', 'met'}
+_baseline_yields_key = 'nominal_yields'
+_yield_systematics_key = 'yield_systematics'
 
 class Workspace(object):
     """
@@ -22,31 +25,39 @@ class Workspace(object):
     # histfitter
     meas_name = 'meas'
 
-    # input file
+    # input file schema
     fixed_backgrounds = {'other'}
-    baseline_syst = 'none'
+    baseline_yields_key = _baseline_yields_key
+    yield_systematics_key = _yield_systematics_key
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, counts, systematics, backgrounds):
+    def __init__(self, yields, backgrounds):
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
 
-        self.counts = counts
-        self.systematics = systematics
+        self._yields = yields[self.baseline_yields_key]
+        # HistFactory actually wants all the systematics as relative
+        # systematics, we convert them here.
+        yield_systematics = yields[self.yield_systematics_key]
+        # the relative systematics are keyed as
+        # {region: {process:{systematic: (down, up), ...}, ... }, ...}
+        self._systematics = _get_relative_systematics(
+            self._yields, yield_systematics)
         self.backgrounds = backgrounds
+
+        # create / configure the measurement
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
-
-        self.signal_point = None
-        for syst in systematics:
+        # set all the systematics as shared parameters
+        for syst in chain(*_split_systematics(yield_systematics)):
             self.meas.AddConstantParam('alpha_{}'.format(syst))
-
         self.meas.SetLumi(1.0)
         lumiError = 0.039
         self.meas.SetLumiRelErr(lumiError)
         self.meas.SetExportOnly(False)
 
+        self.signal_point = None
         # for blinding / pseudodata
         self.region_sums = Counter()
         self.do_pseudodata = False
@@ -61,13 +72,12 @@ class Workspace(object):
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
-
     def add_cr(self, cr):
         chan = self.hf.Channel(cr)
         if self.do_pseudodata:
             self.pseudodata_regions[cr] = chan
         else:
-            data_count = self.counts[self.baseline_syst][cr]['data']
+            data_count = self._yields[cr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: not at all sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
@@ -79,7 +89,7 @@ class Workspace(object):
         if self.blinded:
             self.pseudodata_regions[sr] = chan
         else:
-            data_count = self.counts[self.baseline_syst][sr]['data']
+            data_count = self._yields[sr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
         chan.SetStatErrorConfig(0.05, "Poisson")
@@ -110,13 +120,11 @@ class Workspace(object):
         """should be called by _add_mc_to_channel"""
         if self.signal_point:
             # get yield / stat error in SR
-            baseline_syst = self.counts[self.baseline_syst]
+            yields = self._yields
 
             # signal points don't have to be saved in the yaml file
             # if they are missing it means 0.0 (both yield and stat error)
-            if not self.signal_point in baseline_syst[region]:
-                # warnings.warn('no signal point {} in {}, skipping'.format(
-                #         self.signal_point, region), stacklevel=4)
+            if not self.signal_point in yields[region]:
                 return
 
             # If we're this far, we can create the signal sample
@@ -124,7 +132,7 @@ class Workspace(object):
             signal = self.hf.Sample(sname)
 
             # The signal yield is a list with two entries (yield, stat_error)
-            sig_yield = baseline_syst[region][self.signal_point]
+            sig_yield = yields[region][self.signal_point]
             signal_count = sig_yield[self._nkey]
             signal.SetValue(signal_count)
             sig_stat_error = sig_yield[self._errkey]
@@ -135,10 +143,16 @@ class Workspace(object):
 
             # set a floating normalization factor
             signal.AddNormFactor('mu_{}'.format(self.signal_point),1,0,2)
+
+            # --- add systematics ---
+            syst_dict = self._systematics[region][self.signal_point]
+            for syst, var in syst_dict.iteritems():
+                signal.AddOverallSys(syst, *var)
+
             chan.AddSample(signal)
 
     def _add_background_to_channel(self, chan, region, bg):
-        base_vals = self.counts[self.baseline_syst][region][bg]
+        base_vals = self._yields[region][bg]
         bg_n = base_vals[self._nkey]
         # region sums are needed for blinded results
         self.region_sums[region] += bg_n
@@ -151,25 +165,9 @@ class Workspace(object):
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
         # --- add systematics ---
-        def get_syst_count(syst_name):
-            """shortcut to get the right systematic variation"""
-            return self.counts[syst_name][bg][region][self._nkey]
-
-        for syst in self.systematics:
-            if syst in _up_down_syst:
-                sup_normed = get_syst_count(syst + 'up')
-                sdn_normed = get_syst_count(syst + 'down')
-
-                background.AddOverallSys(
-                    syst, sup_normed / bg_n, sdn_normed / bg_n)
-            else:
-                syst_counts = get_syst_count(syst)
-                rel_syst = syst_counts / bg_n - 1
-                background.AddOverallSys(
-                    syst, 1 - rel_syst/2, 1 + rel_syst/2)
-
-        # NOTE: we'll probably have to hack in a lot more systematics here
-        # by hand...
+        syst_dict = self._systematics[region][bg]
+        for syst, var in syst_dict.iteritems():
+            background.AddOverallSys(syst, *var)
 
         chan.AddSample(background)
 
@@ -240,6 +238,73 @@ class Workspace(object):
             if not trash in good_files:
                 os.remove(trash)
 
+# stuff to calculate systematics in a format HistFactory likes
+def _get_relative_systematics(base_yields, systematic_yields):
+    """calculate relative systematics based on absolute values"""
+    all_syst = set(systematic_yields.iterkeys())
+    sym_systematics, asym_systematics = _split_systematics(all_syst)
+
+    # the relative systematics are keyed as
+    # {region: {process:{systematic: (down, up), ...}, ... }, ...}
+    rel_systs = {}
+    # build all the relative systematics
+    for region, process_dict in base_yields.iteritems():
+        rel_systs[region] = {}
+        for process, (nom_yield, err) in process_dict.iteritems():
+            if process == 'data':
+                continue
+            rel_systs[region][process] = {}
+
+            # start with symmetric ones
+            for syst in sym_systematics:
+                varied_yield = systematic_yields[syst][region][process][0]
+                rel_syst_err = varied_yield / nom_yield - 1.0
+                rel_syst_err /= 2.0 # cut in half because it's symmetric
+                rel_syst_range = ( 1 - rel_syst_err, 1 + rel_syst_err)
+                rel_systs[region][process][syst] = rel_syst_range
+
+            # now do the asymmetric systematics
+            for syst in asym_systematics:
+                sdown = syst + _asym_suffix_down
+                sup = syst + _asym_suffix_up
+
+                def var(sys_name):
+                    """get the relative variation from sys_name"""
+                    raw = systematic_yields[sys_name][region][process][0]
+                    return raw / nom_yield
+
+                rel_systs[region][process][syst] = (var(sdown), var(sup))
+
+    # NOTE: we'll probably have to hack in a lot more systematics here
+    # by hand...
+
+    # TODO: merge the b-tagging systematics as is recommended by
+    # the b-tagging group (sum of squares)
+    return rel_systs
+
+
+_asym_suffix_up = 'up'
+_asym_suffix_down = 'down'
+def _split_systematics(systematics):
+    """
+    Split into symmetric and asymmetric vairations.
+    Find the systematics with an "up" and "down" version, call these
+    asymmetric.
+    """
+    asym = set()
+    for sys in systematics:
+        if sys.endswith(_asym_suffix_up):
+            stem = sys[:-len(_asym_suffix_up)]
+            if stem + _asym_suffix_down in systematics:
+                asym.add(stem)
+
+    asym_variations = set()
+    for sys in asym:
+        asym_variations.add(sys + _asym_suffix_down)
+        asym_variations.add(sys + _asym_suffix_up)
+    sym_systematics = set(systematics) - asym_variations
+    return sym_systematics, asym
+
 # __________________________________________________________________________
 # limit calculators
 
@@ -283,6 +348,34 @@ class UpperLimitCalc(object):
         lower_limit = inverted.GetExpectedUpperLimit(-1)
         upper_limit = inverted.GetExpectedUpperLimit(1)
         return lower_limit, mean_limit, upper_limit
+
+# __________________________________________________________________________
+# helper functions
+
+def _get_sp(proc):
+    """regex search for signal points"""
+    sig_finder = re.compile('scharm-([0-9]+)-([0-9]+)')
+    try:
+        schstr, lspstr = sig_finder.search(proc).groups()
+    except AttributeError:
+        return None
+    # return int(schstr), int(lspstr)
+    return proc
+
+def get_signal_points_and_backgrounds(all_yields):
+    yields = all_yields[_baseline_yields_key]
+    # assume structure {syst: {proc: <counts>, ...}, ...}
+    signal_points = set()
+    backgrounds = set()
+    for procdic in yields.itervalues():
+        for proc in procdic:
+            sp = _get_sp(proc)
+            if sp:
+                signal_points.add(sp)
+            elif proc not in {'data'}:
+                backgrounds.add(proc)
+    return list(signal_points), list(backgrounds)
+
 
 # __________________________________________________________________________
 # may not be needed

@@ -51,10 +51,15 @@ class Workspace(object):
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
         # set all the systematics as shared parameters
         for syst in chain(*_split_systematics(yield_systematics)):
-            self.meas.AddConstantParam('alpha_{}'.format(syst))
+            syst_parameter_name = 'alpha_{}'.format(syst)
+            self.meas.AddConstantParam(syst_parameter_name)
         self.meas.SetLumi(1.0)
         lumiError = 0.039
         self.meas.SetLumiRelErr(lumiError)
+        self.meas.AddConstantParam("Lumi")
+        for bg in self.backgrounds:
+            if not bg in self.fixed_backgrounds:
+                self.meas.AddConstantParam('mu_{}'.format(bg))
         self.meas.SetExportOnly(False)
 
         self.signal_point = None
@@ -70,6 +75,8 @@ class Workspace(object):
         # and add them later.
         self.channels = {}
 
+        self.debug = False
+
     # ____________________________________________________________________
     # top level methods to set control / signal regions
     def add_cr(self, cr):
@@ -80,7 +87,7 @@ class Workspace(object):
             data_count = self._yields[cr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: not at all sure what this does
-        chan.SetStatErrorConfig(0.05, "Poisson")
+        # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, cr)
         self.channels[cr] = chan
 
@@ -92,7 +99,7 @@ class Workspace(object):
             data_count = self._yields[sr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
-        chan.SetStatErrorConfig(0.05, "Poisson")
+        # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, sr)
         self.channels[sr] = chan
 
@@ -164,6 +171,7 @@ class Workspace(object):
         if not bg in self.fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
+        background.SetNormalizeByTheory(False)
         # --- add systematics ---
         syst_dict = self._systematics[region][bg]
         for syst, var in syst_dict.iteritems():
@@ -207,6 +215,10 @@ class Workspace(object):
         # from ROOT import TFile
         # h2ws = self.hf.HistoToWorkspaceFactoryFast(self.meas)
         # ws = h2ws.MakeCombinedModel(self.meas)
+        # # both the below methods segfault...
+        # # method 1
+        # ws.writeToFile(join(results_dir, 'combined.root'), True)
+        # # method 2
         # out = TFile(join(results_dir, 'combined.root'), 'recreate')
         # ws.Write()
         # out.close()
@@ -228,7 +240,11 @@ class Workspace(object):
 
         with OutputFilter(**filter_args):
             workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
-        self._cleanup_results_dir(results_dir)
+        if self.debug:
+            self.meas.PrintTree()
+            self.meas.PrintXML(results_dir)
+        else:
+            self._cleanup_results_dir(results_dir)
 
     def _cleanup_results_dir(self, results_dir):
         """Delete HistFactory byproducts that we don't need"""
@@ -329,17 +345,17 @@ class UpperLimitCalc(object):
         workspace = Util.GetWorkspaceFromFile(workspace_name, 'combined')
 
         Util.SetInterpolationCode(workspace,4)
-        with OutputFilter():
-            inverted = RooStats.DoHypoTestInversion(
-                workspace,
-                1,                      # n_toys
-                2,                      # asymtotic calculator
-                3,                      # test type (3 is atlas standard)
-                True,                   # use CLs
-                20,                     # number of points
-                0,                      # POI min
-                -1,                     # POI max (why -1?)
-                )
+        # with OutputFilter():
+        inverted = RooStats.DoHypoTestInversion(
+            workspace,
+            1,                      # n_toys
+            2,                      # asymtotic calculator
+            3,                      # test type (3 is atlas standard)
+            True,                   # use CLs
+            20,                     # number of points
+            0,                      # POI min
+            -1,                     # POI max (why -1?)
+            )
 
         # one might think that inverted.GetExpectedLowerLimit(-1) would do
         # something different from GetExpectedUpperLimit(-1),

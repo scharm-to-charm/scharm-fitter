@@ -14,6 +14,7 @@ from scharmfit.fitter import Workspace
 from scharmfit.fitter import get_signal_points_and_backgrounds
 
 def run():
+    d = 'default: %(default)s'
     parser = argparse.ArgumentParser(description=__doc__)
 
     # add input options
@@ -21,7 +22,8 @@ def run():
         'yields_file', help=_yields_file)
     parser.add_argument(
         '-y','--fit-config', required=True, help=_config_file)
-
+    parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
+    parser.add_argument('-d', '--debug', action='store_true')
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
     _multispaces(args)
@@ -37,18 +39,23 @@ def _multispaces(config):
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
 
-    # we _should_ loop ovar all signal points (also potentially over multiple
-    # fit configurations). Note that memory leaks in HistFactory make this
+    misc_config = dict(backgrounds=bgs, out_dir=config.out_dir,
+                       debug=config.debug)
+    # loop ovar all signal points (also potentially over multiple fit
+    # configurations). Note that memory leaks in HistFactory make this
     # difficult.
     for signal_point in signal_points:
         print 'booking signal point {}'.format(signal_point)
-        _book_signal_point(yields, signal_point, fit_configs['default'], bgs)
+        _book_signal_point(yields, signal_point, fit_configs['default'],
+                           misc_config)
 
-def _book_signal_point(yields, signal_point, fit_config, backgrounds):
+def _book_signal_point(yields, signal_point, fit_config, misc_config):
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
-    fit = Workspace(yields, backgrounds)
+    fit = Workspace(yields, misc_config['backgrounds'])
+    if misc_config['debug']:
+        fit.debug = True
     fit.set_signal(signal_point)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
@@ -56,7 +63,7 @@ def _book_signal_point(yields, signal_point, fit_config, backgrounds):
     sr = fit_config['signal_region']
     fit.add_sr(sr)
 
-    out_dir = 'workspaces'
+    out_dir = misc_config['out_dir']
     if not isdir(out_dir):
         os.makedirs(out_dir)
 

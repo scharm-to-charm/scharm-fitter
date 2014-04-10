@@ -144,6 +144,7 @@ class Workspace(object):
             signal.SetValue(signal_count)
             sig_stat_error = sig_yield[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
+            # signal.ActivateStatError()
 
             # this does something with lumi error... not sure what
             signal.SetNormalizeByTheory(True)
@@ -172,6 +173,7 @@ class Workspace(object):
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
         background.SetNormalizeByTheory(False)
+        # background.ActivateStatError()
         # --- add systematics ---
         syst_dict = self._systematics[region][bg]
         for syst, var in syst_dict.iteritems():
@@ -182,7 +184,7 @@ class Workspace(object):
     # _________________________________________________________________
     # save the workspace
 
-    def save_workspace(self, results_dir='results',verbose=False):
+    def save_workspace(self, results_dir, verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
         if not self.signal_point:
@@ -238,21 +240,76 @@ class Workspace(object):
                 'nominalLumi',
                 "Can't find parameter of interest:"})
 
-        with OutputFilter(**filter_args):
-            workspace = self.hf.MakeModelAndMeasurementFast(self.meas)
         if self.debug:
             self.meas.PrintTree()
             self.meas.PrintXML(results_dir)
+            self.hf.MakeModelAndMeasurementFast(self.meas)
         else:
-            self._cleanup_results_dir(results_dir)
+            with OutputFilter(**filter_args):
+                self.hf.MakeModelAndMeasurementFast(self.meas)
+
+            # we could clean up the results, if we knew which results we
+            # should be keeping...
+            # self._cleanup_results_dir(results_dir)
 
     def _cleanup_results_dir(self, results_dir):
-        """Delete HistFactory byproducts that we don't need"""
+        """
+        Delete HistFactory byproducts that we don't need.
+        At this point it's not clear what we do and don't need...
+        """
         good_tmp = join(results_dir, '*_combined_{meas}_model.root')
         good_files = glob.glob(good_tmp.format(meas=self.meas_name))
         for trash in glob.glob(join(results_dir,'*')):
             if not trash in good_files:
                 os.remove(trash)
+
+    def do_histfitter_magic(self, input_workspace):
+        """
+        Here we break into histfitter voodoo. What this actually does
+        is one of the great mysteries of science.
+        """
+        from scharmfit import utils
+        utils.load_susyfit()
+        from ROOT import ConfigMgr, Util
+        mgr = ConfigMgr.getInstance()
+        mgr.initialize()
+        mgr.setNToys(1)
+        # from configManager import configMgr
+        # configMgr.readFromTree = False
+        # configMgr.executeHistFactory = True
+        # configMgr.nTOYs = 1
+        # configMgr.removeEmptyBins = True
+        # configMgr.useAsimovSet = False # ??
+        # configMgr.analysisName = "AnalysisName"
+        # if not isdir('histfitter'):
+        #     os.mkdir('histfitter')
+        # configMgr.outputFileName = ("histfitter/%s_Output.root" %
+        #                             configMgr.analysisName)
+        # # skipped a bunch of setup stuff here... don't know if it's needed
+        # configMgr.initialize()
+
+        fc = mgr.addFitConfig("nothing")
+        fc.m_inputWorkspaceFileName = input_workspace
+        for chan in self.channels:
+            if chan == 'signal':
+                continue
+            fc.m_bkgConstrainChannels.push_back(chan)
+        fc.m_signalChannels.push_back('signal')
+
+        # configMgr.executeAll()
+
+        Util.GenerateFitAndPlot(
+            fc.m_name,
+            "ana_name",
+            True, #drawBeforeFit,
+            True, #drawAfterFit,
+            False, #drawCorrelationMatrix,
+            False, #drawSeparateComponents,
+            False, #drawLogLikelihood,
+            False, #runMinos,
+            "", #minosPars
+            )
+
 
 # stuff to calculate systematics in a format HistFactory likes
 def _get_relative_systematics(base_yields, systematic_yields):

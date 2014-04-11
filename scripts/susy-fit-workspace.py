@@ -72,7 +72,7 @@ def _book_signal_point(yields, signal_point, fit_config, misc_config):
     # here be black magic
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
         signal_point, meas=fit.meas_name)
-    fit.do_histfitter_magic(ws_name)
+    # fit.do_histfitter_magic(ws_name)
     ROOT.gDirectory.GetList().Delete()
 
 # _______________________________________________________________________

@@ -6,7 +6,9 @@ import math
 
 def make_dir_if_none(hists_dir):
     """
-    Avoids race condition from launching multiple jobs.
+    Checking whether a directory exists and then creating it if not results
+    in a race condition if you launch several jobs at once. This should
+    be safer.
     """
     try:
         os.makedirs(hists_dir)
@@ -22,19 +24,26 @@ def load_susyfit():
     """
     from distutils import spawn
     from os.path import dirname
-    hf = dirname(spawn.find_executable('HistFitter.py'))
+    hf_path = spawn.find_executable('HistFitter.py')
+    if hf_path is None:
+        raise OSError("can't find HistFitter.py, is it in PATH?")
+    hf = dirname(hf_path)
     import ROOT
     with OutputFilter(accept_re='ERROR'):
         ROOT.gSystem.Load('{}/../lib/libSusyFitter.so'.format(hf))
 
 class OutputFilter(object):
     """
-    Workaround filter for annoying ROOT errors.
+    Workaround filter for annoying ROOT errors. By default silences
+    all output, but this can be modified:
+     - accept_strings: print any lines that match any of these
+     - accept_re: print any lines that match this regex
+     - veto_strings: veto any lines that match these strings
     """
-    def __init__(self, veto_words={'TClassTable'}, accept_words={},
+    def __init__(self, veto_strings={'TClassTable'}, accept_strings={},
                  accept_re=''):
-        self.veto_words = set(veto_words)
-        self.accept_words = set(accept_words)
+        self.veto_words = set(veto_strings)
+        self.accept_words = set(accept_strings)
         self.temp = tempfile.NamedTemporaryFile()
         if accept_re:
             self.re = re.compile(accept_re)
@@ -55,13 +64,19 @@ class OutputFilter(object):
         for line in self.temp:
             if self._should_veto(line):
                 continue
-            accept = set(line.split()) & self.accept_words
+            accept = self._should_accept(line)
             if self.re is not None:
                 re_found = self.re.search(line)
             else:
                 re_found = False
             if accept or re_found:
                 sys.stderr.write(line)
+
+    def _should_accept(self, line):
+        for phrase in self.accept_words:
+            if phrase in line:
+                return True
+        return False
 
     def _should_veto(self, line):
         for veto in self.veto_words:

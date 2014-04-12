@@ -21,6 +21,7 @@ def _get_upper_limit(config):
     workspaces = glob.glob(join(config.workspace_dir,'*_combined_*.root'))
     all_pts = []
     for workspace_name in workspaces:
+        print 'fitting {}'.format(workspace_name)
         ul_dict = _ul_from_workspace(workspace_name.strip())
         all_pts.append(ul_dict)
     with open(config.output_file,'w') as out_yml:

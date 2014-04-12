@@ -39,31 +39,35 @@ class Workspace(object):
 
         self._yields = yields[self.baseline_yields_key]
         # HistFactory actually wants all the systematics as relative
-        # systematics, we convert them here.
-        yield_systematics = yields[self.yield_systematics_key]
-        # the relative systematics are keyed as
+        # systematics, we convert them here.  the relative systematics
+        # are keyed as
         # {region: {process:{systematic: (down, up), ...}, ... }, ...}
+        yield_systematics = yields[self.yield_systematics_key]
         self._systematics = _get_relative_systematics(
             self._yields, yield_systematics)
         self.backgrounds = backgrounds
 
         # create / configure the measurement
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
-        # # ACHTUNG: adding constant parameters _may_ set them to be
-        # # non-floating, or it may mean they are shared, not sure which
-        # set all the systematics as shared parameters
+
+        # ACHTUNG: I we get errors about nom_alpha_* parameters being
+        # defined multiple times when I turn these lines off, but
+        # setting the parameters as constant definitely isn't the
+        # right way to solve the problem. For now we'll just filter
+        # these errors they seem harmless.
+        #
         # for syst in chain(*_split_systematics(yield_systematics)):
         #     syst_parameter_name = 'alpha_{}'.format(syst)
         #     self.meas.AddConstantParam(syst_parameter_name)
         self.meas.SetLumi(1.0)
-        lumiError = 0.039
+        lumiError = 0.039       # NOTE: check this (or make configurable)
         self.meas.SetLumiRelErr(lumiError)
-        self.meas.AddConstantParam("Lumi")
         # # SEE ABOVE
+        # self.meas.AddConstantParam("Lumi")
         # for bg in self.backgrounds:
         #     if not bg in self.fixed_backgrounds:
         #         self.meas.AddConstantParam('mu_{}'.format(bg))
-        self.meas.SetExportOnly(False)
+        self.meas.SetExportOnly(True)
 
         self.signal_point = None
         # for blinding / pseudodata
@@ -72,10 +76,9 @@ class Workspace(object):
         self.blinded = True
         self.pseudodata_regions = {}
 
-        # we have to add the channels to the measurement  _after_ adding
-        # data to the channels.
-        # We're using pseudodata, which means we have to save the channels
-        # and add them later.
+        # we have to add the channels to the measurement _after_
+        # adding data to the channels.  We're using pseudodata, which
+        # means we have to save the channels and add them later.
         self.channels = {}
 
         self.debug = False
@@ -147,6 +150,10 @@ class Workspace(object):
             signal.SetValue(signal_count)
             sig_stat_error = sig_yield[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
+            # TODO: see if we need to call ActivateStatError(). For
+            # now it's commented out because it makes the code
+            # crash...
+
             # signal.ActivateStatError()
 
             # this does something with lumi error... not sure what
@@ -176,6 +183,7 @@ class Workspace(object):
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
         background.SetNormalizeByTheory(False)
+        # SEE ABOVE COMMENT on ActivateStatError
         # background.ActivateStatError()
         # --- add systematics ---
         syst_dict = self._systematics[region][bg]
@@ -195,7 +203,8 @@ class Workspace(object):
         if not isdir(results_dir):
             os.mkdir(results_dir)
 
-        # we actually build the measurement here
+        # we actually build the measurement here (couldn't be done earlier
+        # because we needed to calculate pseudo-data)
         for chan_name, channel in self.channels.iteritems():
             # add the pseudodata regions
             if chan_name in self.pseudodata_regions:
@@ -229,19 +238,20 @@ class Workspace(object):
         # out.close()
 
         # HACK SOLUTION (which we got from HistFitter)
-        # First set up an output filter (most of the output seems pretty
-        # useless).
-        # There are a bunch of errors saying the nominal lumi has been
-        # set twice, which seem harmless.  Also somc stuff about
-        # missing a parameter of interest in the non-combined
-        # workspaces, which seems harmless since we're only using the
-        # combined one.
+        # First set up an output filter (most of the output seems
+        # pretty useless).  There are a bunch of errors saying the
+        # nominal lumi has been set twice, which seem harmless.  Also
+        # somc stuff about missing a parameter of interest in the
+        # non-combined workspaces, which seems harmless since we're
+        # only using the combined one.
         pass_strings = ['ERROR:','WARNING:']
+        veto_strings={
+            'ERROR argument with name nominalLumi',
+            'ERROR argument with name nom_alpha_',
+            "Can't find parameter of interest:"}
         filter_args = dict(
             accept_re='({})'.format('|'.join(pass_strings)),
-            veto_words={
-                'nominalLumi',
-                "Can't find parameter of interest:"})
+            veto_strings=veto_strings)
 
         if self.debug:
             self.meas.PrintTree()
@@ -251,8 +261,8 @@ class Workspace(object):
             with OutputFilter(**filter_args):
                 self.hf.MakeModelAndMeasurementFast(self.meas)
 
-            # we could clean up the results, if we knew which results we
-            # should be keeping...
+            # The above line makes several files. It's not obvious
+            # that they are all needed. This deletes the extra files.
             self._cleanup_results_dir(results_dir)
 
     def _cleanup_results_dir(self, results_dir):
@@ -277,19 +287,6 @@ class Workspace(object):
         mgr = ConfigMgr.getInstance()
         mgr.initialize()
         mgr.setNToys(1)
-        # from configManager import configMgr
-        # configMgr.readFromTree = False
-        # configMgr.executeHistFactory = True
-        # configMgr.nTOYs = 1
-        # configMgr.removeEmptyBins = True
-        # configMgr.useAsimovSet = False # ??
-        # configMgr.analysisName = "AnalysisName"
-        # if not isdir('histfitter'):
-        #     os.mkdir('histfitter')
-        # configMgr.outputFileName = ("histfitter/%s_Output.root" %
-        #                             configMgr.analysisName)
-        # # skipped a bunch of setup stuff here... don't know if it's needed
-        # configMgr.initialize()
 
         fc = mgr.addFitConfig("nothing")
         fc.m_inputWorkspaceFileName = input_workspace
@@ -298,8 +295,6 @@ class Workspace(object):
                 continue
             fc.m_bkgConstrainChannels.push_back(chan)
         fc.m_signalChannels.push_back('signal')
-
-        # configMgr.executeAll()
 
         Util.GenerateFitAndPlot(
             fc.m_name,
@@ -405,7 +400,9 @@ class UpperLimitCalc(object):
         workspace = Util.GetWorkspaceFromFile(workspace_name, 'combined')
 
         Util.SetInterpolationCode(workspace,4)
-        with OutputFilter():
+        # NOTE: We're completely silencing the fitter. Add an empty string
+        # to the accept_strings to get all output.
+        with OutputFilter(accept_strings={}):
             inverted = RooStats.DoHypoTestInversion(
                 workspace,
                 1,                      # n_toys
@@ -417,9 +414,10 @@ class UpperLimitCalc(object):
                 -1,                     # POI max (why -1?)
                 )
 
-        # one might think that inverted.GetExpectedLowerLimit(-1) would do
-        # something different from GetExpectedUpperLimit(-1),
-        # but then one would be wrong...
+        # one might think that inverted.GetExpectedLowerLimit(-1)
+        # would do something different from GetExpectedUpperLimit(-1).
+        # This doesn't seem to be true, from what I can tell both
+        # functions do exactly the same thing.
         mean_limit = inverted.GetExpectedUpperLimit(0)
         lower_limit = inverted.GetExpectedUpperLimit(-1)
         upper_limit = inverted.GetExpectedUpperLimit(1)
@@ -453,22 +451,3 @@ def get_signal_points_and_backgrounds(all_yields):
     return list(signal_points), list(backgrounds)
 
 
-# __________________________________________________________________________
-# may not be needed
-
-def _chop_ud(word):
-    for chop in ['up','down']:
-        if word.endswith(chop):
-            return word[:-len(chop)]
-    return word
-
-def _path_from_sr(met_gev, pt_gev, signal_point, tag_config='conf',
-            top='workspaces'):
-    path_tmp = '{top}/{tag}/met{met:.0f}/pt{pt:.0f}/{sp}'
-    return path_tmp.format(
-        tag=tag_config, met=met_gev, pt=pt_gev, sp=signal_point, top=top)
-
-def _sr_from_path(path):
-    sr_re = re.compile('([^/]*)/met([0-9]+)/pt([0-9]+)/([^/]*)')
-    tag, mstr, pstr, sp = sr_re.search(path).group(1,2,3,4)
-    return int(mstr), int(pstr), sp, tag

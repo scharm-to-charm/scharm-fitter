@@ -41,13 +41,15 @@ def _multispaces(config):
 
     misc_config = dict(backgrounds=bgs, out_dir=config.out_dir,
                        debug=config.debug)
-    # loop ovar all signal points (also potentially over multiple fit
-    # configurations). Note that memory leaks in HistFactory make this
-    # difficult.
+
+    # loop ovar all signal points and fit configurations. Note that
+    # memory leaks in HistFactory make this difficult.
     for signal_point in signal_points:
-        print 'booking signal point {}'.format(signal_point)
-        _book_signal_point(yields, signal_point, fit_configs['default'],
-                           misc_config)
+        for cfg_name, fit_cfg in fit_configs.iteritems():
+            print 'booking signal point {} with {} config'.format(
+                signal_point, cfg_name)
+            _book_signal_point(yields, signal_point, fit_cfg,
+                               misc_config)
 
 def _book_signal_point(yields, signal_point, fit_config, misc_config):
     import ROOT

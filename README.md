@@ -57,13 +57,20 @@ relative_systematics:
 The `REGION_NAME`s are completely arbitrary, since the fit treats all regions
 identically (except when the signal region is blinded and the MC SM sum is used in place of real data).
 
-Signal point and background names are _mostly_ arbitrary, with a few exceptions:
- - some `BACKGROUND`s will be treated in a special way, for example
-   the b-tagging systematics will all be added in quadrature before
-   the fit, (will probably add warnings if all these backgrounds
-   aren't found)
- - signal points must be of the form "`scharm-` scharm
-   mass `-` lsp mass".  The masses can be arbitrary integers, though.
+Some of the `SYSTEMATIC` categories under `yield_systematics` will be
+treated in special ways:
+ - The b-tagging systematics (names starting with `b`, `c`, `u`, or
+   `t` and ending with `up` or `down`, i.e. `bup`, `udown` etc...)
+   will be added in quadrature before fitting. (will probably add
+   warnings if all these backgrounds aren't found).
+ - Other names that end in `up` or `down` will be paired to give an
+   asymmetric uncertainty.
+ - Any other (unpaired) systematics will be entered as a symmetric uncertainty
+   centered on the nominal value.
+
+Signal points must be of the form "`scharm-` scharm mass `-` lsp
+mass".  The masses can be arbitrary integers. The `BACKGROUND` names
+are arbitrary.
 
 Values given by `YIELD` and `STATISTICAL_UNCERTAINTY` should be
 absolute. Relative uncertainties are specified with `1.0` meaning "no
@@ -94,7 +101,9 @@ regions) if it doesn't exist.
  - The workspace creation routine prints a lot of errors of the form:
    `ERROR argument with name nom_something is already in this
    set`. These are _probably_ just harmless overwrites, since the
-   nominal value shouldn't be use in the fit, but it should be checked.
+   nominal value shouldn't be use in the fit, but it should be
+   checked. For now these errors are being filtered from the output
+   stream.
  - Workspace creation produces about 5 files, only one of which we
    seem to need. Right now I'm deleting the others, should make sure
    this is safe.

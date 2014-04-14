@@ -5,6 +5,7 @@ Workspace generator for scharm to charm search.
 _yields_file = 'yaml file giving the yields'
 _config_file = (
     'file listing signal / control regions, will be generated if missing')
+_hf_magic = 'run histfitter stuff'
 import argparse, re, sys, os
 from os.path import isfile, isdir, join
 from itertools import chain
@@ -24,6 +25,7 @@ def run():
         '-y','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument('-m', '--magic', action='store_true', help=_hf_magic)
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
     _multispaces(args)
@@ -40,7 +42,7 @@ def _multispaces(config):
     print 'using backgrounds: {}'.format(', '.join(bgs))
 
     misc_config = dict(backgrounds=bgs, out_dir=config.out_dir,
-                       debug=config.debug)
+                       debug=config.debug, do_hf=config.magic)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -74,7 +76,9 @@ def _book_signal_point(yields, signal_point, fit_config, misc_config):
     # here be black magic
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
         signal_point, meas=fit.meas_name)
-    # fit.do_histfitter_magic(ws_name)
+    if misc_config['do_hf']:
+        fit.do_histfitter_magic(ws_name)
+        sys.exit('wrote a histfitter workspace, quitting')
     ROOT.gDirectory.GetList().Delete()
 
 # _______________________________________________________________________

@@ -299,8 +299,8 @@ class Workspace(object):
         Util.GenerateFitAndPlot(
             fc.m_name,
             "ana_name",
-            True, #drawBeforeFit,
-            True, #drawAfterFit,
+            False, #drawBeforeFit,
+            False, #drawAfterFit,
             False, #drawCorrelationMatrix,
             False, #drawSeparateComponents,
             False, #drawLogLikelihood,

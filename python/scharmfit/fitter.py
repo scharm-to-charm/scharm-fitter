@@ -6,13 +6,10 @@ import os, re, glob
 from os.path import isdir, join, isfile
 from collections import defaultdict, Counter
 import warnings
-from itertools import chain
+from itertools import chain, product
 
-# NOTE: these systematics have an 'up' and 'down' variant.
-# some work is needed with the b-tagging systematics: we should
-# be adding the uncertainties in quadrature. As it stands, they are being
-# treated as seperate parameters.
-_up_down_syst = {'jes', 'u','c','b','t', 'el', 'mu', 'met'}
+# define some keys used in the yaml input file (to avoid hardcoding
+# them in multiple places)
 _baseline_yields_key = 'nominal_yields'
 _yield_systematics_key = 'yield_systematics'
 
@@ -309,7 +306,10 @@ class Workspace(object):
             )
 
 
-# stuff to calculate systematics in a format HistFactory likes
+# _________________________________________________________________________
+# systematic calculation (convert yields to relative systematics,
+# combine b-tagging systematics, etc...)
+
 def _get_relative_systematics(base_yields, systematic_yields):
     """calculate relative systematics based on absolute values"""
     all_syst = set(systematic_yields.iterkeys())
@@ -349,10 +349,9 @@ def _get_relative_systematics(base_yields, systematic_yields):
     # NOTE: we'll probably have to hack in a lot more systematics here
     # by hand...
 
-    # TODO: merge the b-tagging systematics as is recommended by
-    # the b-tagging group (sum of squares)
-    return rel_systs
-
+    # merge the b-tagging systematics as is recommended by the
+    # b-tagging group (sum of squares)
+    return _combine_systematics(rel_systs)
 
 _asym_suffix_up = 'up'
 _asym_suffix_down = 'down'
@@ -375,6 +374,49 @@ def _split_systematics(systematics):
         asym_variations.add(sys + _asym_suffix_up)
     sym_systematics = set(systematics) - asym_variations
     return sym_systematics, asym
+
+def _combine_systematics(relative_systematics):
+    """do all the ugly combination work here"""
+    try:
+        relative_systematics = _combine_tagging_systematics(
+            relative_systematics)
+    except KeyError as err:
+        # print a warning if the key error is just a missing btagging
+        # systematic
+        if err.args[0] not in 'bcut':
+            raise
+        warnings.warn(
+            ("missing tagging systematic '{}' won't combine "
+             "tagging systematics").format(
+                err.args[0]), stacklevel=2)
+    return relative_systematics
+
+def _combine_tagging_systematics(relative_systematics):
+    """
+    The b-tagging group recommends adding all the systematics in
+    quadrature and fitting with a single tagging systematic.
+    """
+    out_rel = {}
+
+    # the relative systematics are keyed as
+    # {region: {process:{systematic: (down, up), ...}, ... }, ...}
+    for region, procdic in relative_systematics.iteritems():
+        reg_systs = {}
+        for process, sysdict in procdic.iteritems():
+            tag_sum2 = 0.0
+            for sys in 'bcut':
+                down, up = sysdict[sys]
+                tag_sum2 += (down - 1)**2 + (up - 1)**2
+
+            # ACHTUNG: not sure if we should divide by 2 _before_ taking
+            # the square root...
+            tag_sys = tag_sum2**0.5 / 2.0
+            reg_systs[process] = {'ctag': (1 - tag_sys, 1 + tag_sys)}
+            for sys, updown in sysdict.iteritems():
+                if sys not in 'bcut':
+                    reg_systs[process][sys] = updown
+        out_rel[region] = reg_systs
+    return out_rel
 
 # __________________________________________________________________________
 # limit calculators

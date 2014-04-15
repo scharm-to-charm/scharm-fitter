@@ -50,10 +50,11 @@ def _multispaces(config):
         for cfg_name, fit_cfg in fit_configs.iteritems():
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)
-            _book_signal_point(yields, signal_point, fit_cfg,
-                               misc_config)
+            _book_signal_point(
+                yields, signal_point, (cfg_name, fit_cfg), misc_config)
 
-def _book_signal_point(yields, signal_point, fit_config, misc_config):
+def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
+    cfg_name, fit_config = fit_configuration
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
@@ -67,7 +68,7 @@ def _book_signal_point(yields, signal_point, fit_config, misc_config):
     sr = fit_config['signal_region']
     fit.add_sr(sr)
 
-    out_dir = join(misc_config['out_dir'], fit_config)
+    out_dir = join(misc_config['out_dir'], cfg_name)
     if not isdir(out_dir):
         os.makedirs(out_dir)
 

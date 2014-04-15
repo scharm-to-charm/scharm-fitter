@@ -67,7 +67,7 @@ def _book_signal_point(yields, signal_point, fit_config, misc_config):
     sr = fit_config['signal_region']
     fit.add_sr(sr)
 
-    out_dir = misc_config['out_dir']
+    out_dir = join(misc_config['out_dir'], fit_config)
     if not isdir(out_dir):
         os.makedirs(out_dir)
 

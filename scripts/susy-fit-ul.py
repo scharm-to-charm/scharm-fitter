@@ -4,9 +4,10 @@ Upper limit calculator scharm to charm search. Takes a directory of
 workspaces as an input.
 """
 import yaml
-from os.path import join
+from os.path import join, relpath
 import argparse, re, sys, glob
 from scharmfit.fitter import UpperLimitCalc
+from os import walk
 
 def run():
     d = '(default: %(default)s)'
@@ -15,17 +16,26 @@ def run():
     parser.add_argument(
         '-o','--output-file', default='upper-limits.yml', help=d)
     config = parser.parse_args(sys.argv[1:])
-    _get_upper_limit(config)
+    _make_ul(config)
 
-def _get_upper_limit(config):
-    workspaces = glob.glob(join(config.workspace_dir,'*_combined_*.root'))
+def _make_ul(config):
+    cfg_dict = {}
+    for base, dirs, files in walk(config.workspace_dir):
+        if not dirs and files:
+            workspaces = glob.glob(join(base,'*_combined_*.root'))
+            cfg = relpath(base, config.workspace_dir)
+            all_pts = _get_upper_limit(workspaces)
+            cfg_dict[cfg] = all_pts
+    with open(config.output_file,'w') as out_yml:
+        out_yml.write(yaml.dump(cfg_dict))
+
+def _get_upper_limit(workspaces):
     all_pts = []
     for workspace_name in workspaces:
         print 'fitting {}'.format(workspace_name)
         ul_dict = _ul_from_workspace(workspace_name.strip())
         all_pts.append(ul_dict)
-    with open(config.output_file,'w') as out_yml:
-        out_yml.write(yaml.dump(all_pts))
+    return all_pts
 
 _sp_re = re.compile('scharm-([0-9]+)-([0-9]+)_combined')
 def _ul_from_workspace(workspace_name):

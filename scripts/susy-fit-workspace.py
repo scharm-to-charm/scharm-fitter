@@ -11,8 +11,8 @@ from os.path import isfile, isdir, join
 from itertools import chain
 import yaml
 import warnings
-from scharmfit.fitter import Workspace
-from scharmfit.fitter import get_signal_points_and_backgrounds
+from scharmfit.workspace import Workspace
+from scharmfit.workspace import get_signal_points_and_backgrounds
 
 def run():
     d = 'default: %(default)s'

@@ -3,7 +3,7 @@
 from scharmfit.utils import OutputFilter
 import h5py
 import os, re, glob
-from os.path import isdir, join, isfile
+from os.path import isdir, join
 from collections import defaultdict, Counter
 import warnings
 from itertools import chain, product

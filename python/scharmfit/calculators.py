@@ -1,5 +1,8 @@
 """routines to turn workspaces into CLs, upper limits, etc"""
 
+from scharmfit.utils import OutputFilter
+from os.path import isfile
+
 # __________________________________________________________________________
 # limit calculators
 
@@ -70,7 +73,7 @@ class CLsCalc(object):
         Util.SetInterpolationCode(workspace,4)
         # NOTE: We're completely silencing the fitter. Add an empty string
         # to the accept_strings to get all output.
-        with OutputFilter(accept_strings={''}):
+        with OutputFilter(accept_strings={}):
             limit = RooStats.get_Pvalue(
                 workspace,
                 True,                   # doUL

@@ -34,7 +34,7 @@ def load_susyfit():
 
 class OutputFilter(object):
     """
-    Workaround filter for annoying ROOT errors. By default silences
+    Workaround filter for annoying ROOT output. By default silences
     all output, but this can be modified:
      - accept_strings: print any lines that match any of these
      - accept_re: print any lines that match this regex
@@ -61,6 +61,14 @@ class OutputFilter(object):
         os.close(self.old_out)
         os.close(self.old_err)
         self.temp.seek(0)
+
+        # dump everything if an exception was thrown
+        if exe_type is not None:
+            for line in self.temp:
+                sys.stderr.write(line)
+            return False
+
+        # if no exception is thrown only dump important lines
         for line in self.temp:
             if self._should_veto(line):
                 continue

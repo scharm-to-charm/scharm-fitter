@@ -16,10 +16,16 @@ def run():
     parser.add_argument('workspace_dir')
     parser.add_argument('-c','--calc-type', choices=outputs.keys(),
                         required=True)
+
+    # default output file depends on what you're running
     def_string = ', '.join('{}: {}'.format(*x) for x in outputs.iteritems())
     parser.add_argument(
         '-o','--output-file', help='defaults -- {}'.format(def_string))
     config = parser.parse_args(sys.argv[1:])
+    if not config.output_file:
+        config.output_file = outputs[config.calc_type]
+
+    # run the fits
     _make_calc_file(config)
 
 def _make_calc_file(config):
@@ -30,8 +36,14 @@ def _make_calc_file(config):
     # loop over all the workspaces, fit them all
     for base, dirs, files in walk(config.workspace_dir):
         if not dirs and files:
-            workspaces = glob.glob(join(base,'*_combined_*.root'))
-            cfg = relpath(base, config.workspace_dir)
+            workspaces = glob.glob(join(base,'*_combined_*_model.root'))
+
+            # the configuration name (key under which the fit result
+            # is saved) is the path from the directory we run on to
+            # the directory where the workspaces are found.
+            cfg = base
+            if base != config.workspace_dir:
+                cfg = relpath(base, config.workspace_dir)
             all_pts = []
             for workspace_name in workspaces:
                 print 'fitting {}'.format(workspace_name)

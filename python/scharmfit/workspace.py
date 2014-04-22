@@ -12,6 +12,7 @@ from itertools import chain, product
 # them in multiple places)
 _baseline_yields_key = 'nominal_yields'
 _yield_systematics_key = 'yield_systematics'
+_relative_systematics_key = 'relative_systematics'
 
 class Workspace(object):
     """
@@ -26,6 +27,7 @@ class Workspace(object):
     fixed_backgrounds = {'other'}
     baseline_yields_key = _baseline_yields_key
     yield_systematics_key = _yield_systematics_key
+    relative_systematics_key = _relative_systematics_key
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
@@ -40,8 +42,10 @@ class Workspace(object):
         # are keyed as
         # {region: {process:{systematic: (down, up), ...}, ... }, ...}
         yield_systematics = yields[self.yield_systematics_key]
-        self._systematics = _get_relative_systematics(
+        self._systematics = _get_relative_from_abs_systematics(
             self._yields, yield_systematics)
+        _update_with_relative_systematics(
+            self._systematics, yields.get(self.relative_systematics_key,{}))
         self.backgrounds = backgrounds
 
         # create / configure the measurement
@@ -310,7 +314,7 @@ class Workspace(object):
 # systematic calculation (convert yields to relative systematics,
 # combine b-tagging systematics, etc...)
 
-def _get_relative_systematics(base_yields, systematic_yields):
+def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     """calculate relative systematics based on absolute values"""
     all_syst = set(systematic_yields.iterkeys())
     sym_systematics, asym_systematics = _split_systematics(all_syst)
@@ -412,11 +416,29 @@ def _combine_tagging_systematics(relative_systematics):
             # the square root...
             tag_sys = tag_sum2**0.5 / 2.0
             reg_systs[process] = {'ctag': (1 - tag_sys, 1 + tag_sys)}
-            for sys, updown in sysdict.iteritems():
+            for sys, downup in sysdict.iteritems():
                 if sys not in 'bcut':
-                    reg_systs[process][sys] = updown
+                    reg_systs[process][sys] = downup
         out_rel[region] = reg_systs
     return out_rel
+
+def _update_with_relative_systematics(existing, rel_systs):
+    """
+    Add relative systematics to the systematics we use. Throw an
+    exception if we try to overwrite.
+    """
+    for sys_name, region_dict in rel_systs.iteritems():
+        for region_name, process_dict in region_dict.iteritems():
+            if region_name not in existing:
+                existing[region_name] = {}
+            for process_name, downup in process_dict.iteritems():
+                if process_name not in existing[region_name]:
+                    existing[region_name][process_name] = {}
+                old_systs = existing[region_name][process_name]
+                if sys_name in old_systs:
+                    raise ValueError('tried to overwrite systematic')
+                old_systs[sys_name] = downup
+                existing[region_name][process_name] = old_systs
 
 # __________________________________________________________________________
 # helper functions

@@ -41,8 +41,9 @@ def _multispaces(config):
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
 
-    misc_config = dict(backgrounds=bgs, out_dir=config.out_dir,
-                       debug=config.debug, do_hf=config.magic)
+    misc_config = dict(
+        backgrounds=bgs, out_dir=config.out_dir,
+        debug=config.debug, do_hf=config.magic)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -58,7 +59,9 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
-    fit = Workspace(yields, misc_config['backgrounds'])
+    fit = Workspace(
+        yields, misc_config['backgrounds'],
+        combine_tagging_syst=fit_config.get('combine_tagging', True))
     if misc_config['debug']:
         fit.debug = True
     fit.set_signal(signal_point)
@@ -97,6 +100,7 @@ def _get_config(cfg_name, yields_dict):
                 'cr_1l', 'cr_df', 'cr_z'
                 ],
             'signal_region': 'signal',
+            'combine_tagging': True,
             }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:

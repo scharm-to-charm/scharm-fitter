@@ -31,7 +31,7 @@ class Workspace(object):
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, yields, backgrounds):
+    def __init__(self, yields, backgrounds, combine_tagging_syst=True):
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
@@ -44,6 +44,10 @@ class Workspace(object):
         yield_systematics = yields[self.yield_systematics_key]
         self._systematics = _get_relative_from_abs_systematics(
             self._yields, yield_systematics)
+        # we can merge the tagging systematic as recommended by the
+        # b-tagging group
+        if combine_tagging_syst:
+            self._systematics = _combine_systematics(self._systematics)
         _update_with_relative_systematics(
             self._systematics, yields.get(self.relative_systematics_key,{}))
         self.backgrounds = backgrounds
@@ -359,9 +363,7 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     # NOTE: we'll probably have to hack in a lot more systematics here
     # by hand...
 
-    # merge the b-tagging systematics as is recommended by the
-    # b-tagging group (sum of squares)
-    return _combine_systematics(rel_systs)
+    return rel_systs
 
 _asym_suffix_up = 'up'
 _asym_suffix_down = 'down'

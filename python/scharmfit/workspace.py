@@ -332,7 +332,13 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
 
             # start with symmetric ones
             for syst in sym_systematics:
-                varied_yield = systematic_yields[syst][region][process][0]
+                try:
+                    varied_yield = systematic_yields[syst][region][process][0]
+                except KeyError as err:
+                    loc = syst, region, process
+                    warnings.warn('no val found for {}, using 0.0'.format(
+                            loc))
+                    varied_yield = 0.0
                 rel_syst_err = varied_yield / nom_yield - 1.0
                 rel_syst_err /= 2.0 # cut in half because it's symmetric
                 rel_syst_range = ( 1 - rel_syst_err, 1 + rel_syst_err)

@@ -175,7 +175,7 @@ class Workspace(object):
             chan.AddSample(signal)
 
     def _add_background_to_channel(self, chan, region, bg):
-        base_vals = self._yields[region][bg]
+        base_vals = self._yields[region].get(bg, [0.0, 0.0])
         bg_n = base_vals[self._nkey]
         # region sums are needed for blinded results
         self.region_sums[region] += bg_n
@@ -191,7 +191,7 @@ class Workspace(object):
         # SEE ABOVE COMMENT on ActivateStatError
         # background.ActivateStatError()
         # --- add systematics ---
-        syst_dict = self._systematics[region][bg]
+        syst_dict = self._systematics[region].get(bg, {})
         for syst, var in syst_dict.iteritems():
             background.AddOverallSys(syst, *var)
 

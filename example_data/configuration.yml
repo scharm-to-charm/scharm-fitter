@@ -1,0 +1,8 @@
+combined_tagging:
+  control_regions: [cr_w, cr_t, cr_z]
+  signal_region: signal
+  combine_tagging: true
+free_tagging:
+  control_regions: [cr_w, cr_t, cr_z]
+  signal_region: signal
+  combine_tagging: false

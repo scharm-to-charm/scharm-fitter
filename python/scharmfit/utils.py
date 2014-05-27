@@ -3,6 +3,7 @@ import os, sys, re, errno
 from time import time
 from itertools import product
 import math
+from os.path import dirname
 
 def make_dir_if_none(hists_dir):
     """
@@ -25,7 +26,6 @@ def load_susyfit(use_histfitter_version=False):
     if use_histfitter_version:
         # assume libSusyFitter is in some local HistFitter package
         from distutils import spawn
-        from os.path import dirname
         hf_path = spawn.find_executable('HistFitter.py')
         if hf_path is None:
             raise OSError("can't find HistFitter.py, is it in PATH?")
@@ -35,10 +35,11 @@ def load_susyfit(use_histfitter_version=False):
         # assume that libSusyFitter.so is in this package
         import inspect
         here = inspect.getsourcefile(make_dir_if_none)
-        lib_path = '{}/../../lib'.format(here)
+        lib_path = '{}/../../lib'.format(dirname(here))
     import ROOT
     with OutputFilter(accept_re='ERROR'):
         ROOT.gSystem.Load('{}/libSusyFitter.so'.format(lib_path))
+        
 
 class OutputFilter(object):
     """

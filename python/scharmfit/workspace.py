@@ -3,7 +3,7 @@
 from scharmfit.utils import OutputFilter
 import h5py
 import os, re, glob
-from os.path import isdir, join
+from os.path import isdir, join, basename
 from collections import defaultdict, Counter
 import warnings
 from itertools import chain, product
@@ -266,11 +266,7 @@ class Workspace(object):
             with OutputFilter(**filter_args):
                 self.hf.MakeModelAndMeasurementFast(self.meas)
 
-            # The above line makes several files. It's not obvious
-            # that they are all needed. This deletes the extra files.
-            self._cleanup_results_dir(results_dir)
-
-    def _cleanup_results_dir(self, results_dir):
+    def cleanup_results_dir(self, results_dir):
         """
         Delete HistFactory byproducts that we don't need.
         At this point it's not clear what we do and don't need...
@@ -281,7 +277,7 @@ class Workspace(object):
             if not trash in good_files:
                 os.remove(trash)
 
-    def do_histfitter_magic(self, input_workspace):
+    def do_histfitter_magic(self, input_workspace, verbose=False):
         """
         Here we break into histfitter voodoo. The functions here are pulled
         out of the HistFitter.py script.
@@ -293,25 +289,44 @@ class Workspace(object):
         mgr.initialize()
         mgr.setNToys(1)
 
-        fc = mgr.addFitConfig("nothing")
+        # the fit configs seem to need unique names, use random numbers
+        import random
+        fc_number = 0
+        # such a hack... but this is to check if the fit config is unique
+        with OutputFilter():
+            while mgr.getFitConfig(str(fc_number)):
+                fc_number += 1
+        fc = mgr.addFitConfig(str(fc_number))
         fc.m_inputWorkspaceFileName = input_workspace
+        fc.m_signalSampleName = basename(input_workspace).split('.')[0]
+
         for chan in self.channels:
             if chan == 'signal':
                 continue
             fc.m_bkgConstrainChannels.push_back(chan)
         fc.m_signalChannels.push_back('signal')
 
-        Util.GenerateFitAndPlot(
-            fc.m_name,
-            "ana_name",
-            False, #drawBeforeFit,
-            False, #drawAfterFit,
-            False, #drawCorrelationMatrix,
-            False, #drawSeparateComponents,
-            False, #drawLogLikelihood,
-            False, #runMinos,
-            "", #minosPars
-            )
+        accept_strings = {'ERROR:','WARNING:'} if not verbose else {''}
+
+        with OutputFilter(accept_strings=accept_strings):
+            Util.GenerateFitAndPlot(
+                fc.m_name,
+                "ana_name",
+                False, #drawBeforeFit,
+                False, #drawAfterFit,
+                False, #drawCorrelationMatrix,
+                False, #drawSeparateComponents,
+                False, #drawLogLikelihood,
+                False, #runMinos,
+                "", #minosPars
+                )
+            # I can't get doUpperLimit to work. While that would be
+            # the nicer solution, for a hack instead I'll call
+            # doUpperLimitAll from another routine later.
+            # mgr.doUpperLimit(fc)
+
+            # mgr.m_outputFileName = 'upperlim.root'
+            # mgr.doUpperLimitAll()
 
 
 # _________________________________________________________________________
@@ -476,3 +491,19 @@ def get_signal_points_and_backgrounds(all_yields):
     return list(signal_points), list(backgrounds)
 
 
+def do_upper_limits(verbose=False):
+    from scharmfit import utils
+    utils.load_susyfit()
+    from ROOT import ConfigMgr, Util
+    mgr = ConfigMgr.getInstance()
+    mgr.m_outputFileName = 'upperlim.root'
+    mgr.m_nToys = 1
+    mgr.m_calcType = 2
+    mgr.m_testStatType = 3
+    mgr.m_useCLs = True
+    mgr.m_nPoints = -1
+    if verbose:
+        mgr.doUpperLimitAll()
+    else:
+        with OutputFilter():
+            mgr.doUpperLimitAll()

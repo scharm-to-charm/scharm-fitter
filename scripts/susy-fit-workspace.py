@@ -11,7 +11,7 @@ from os.path import isfile, isdir, join
 from itertools import chain
 import yaml
 import warnings
-from scharmfit.workspace import Workspace
+from scharmfit.workspace import Workspace, do_upper_limits
 from scharmfit.workspace import get_signal_points_and_backgrounds
 
 def run():
@@ -26,6 +26,7 @@ def run():
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
     parser.add_argument('-m', '--magic', action='store_true', help=_hf_magic)
+    parser.add_argument('-v', '--verbose', action='store_true')
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
     _multispaces(args)
@@ -43,7 +44,7 @@ def _multispaces(config):
 
     misc_config = dict(
         backgrounds=bgs, out_dir=config.out_dir,
-        debug=config.debug, do_hf=config.magic)
+        debug=config.debug, do_hf=config.magic, verbose=config.verbose)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -53,6 +54,10 @@ def _multispaces(config):
                 signal_point, cfg_name)
             _book_signal_point(
                 yields, signal_point, (cfg_name, fit_cfg), misc_config)
+
+    # relies on HistFitter's global variables, has to be run after
+    # booking a bunch of workspaces.
+    do_upper_limits(verbose=config.verbose)
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     cfg_name, fit_config = fit_configuration
@@ -77,12 +82,15 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 
     fit.save_workspace(out_dir)
 
+    if not misc_config['do_hf']:
+        fit.cleanup_results_dir(out_dir)
+        ROOT.gDirectory.GetList().Delete()
+        return
+
     # here be black magic
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
         signal_point, meas=fit.meas_name)
-    if misc_config['do_hf']:
-        fit.do_histfitter_magic(ws_name)
-        sys.exit('wrote a histfitter workspace, quitting')
+    fit.do_histfitter_magic(ws_name, verbose=misc_config['verbose'])
     ROOT.gDirectory.GetList().Delete()
 
 # _______________________________________________________________________

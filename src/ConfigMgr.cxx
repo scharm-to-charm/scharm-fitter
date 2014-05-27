@@ -439,9 +439,11 @@ void ConfigMgr::doUpperLimit(FitConfig* fc) {
     }
 
     /// store ul as nice plot ..
-    if ( hypo!=0 ) {
+    // NOTE: had to disable this, it was segfaulting, not sure why
+    // DG Tue May 27 17:18:52 EDT 2014
+    if ( hypo!=0 && false) {
         TString outputPrefix = TString(gSystem->DirName(outfileName))+"/"+fc->m_signalSampleName.Data();
-        RooStats::AnalyzeHypoTestInverterResult( hypo, m_calcType, m_testStatType, m_useCLs, m_nPoints, outputPrefix, ".eps") ;
+        RooStats::AnalyzeHypoTestInverterResult( hypo, m_calcType, m_testStatType, m_useCLs, m_nPoints, outputPrefix, ".pdf") ;
     }
 
     //cout << "h1" << GEndl;

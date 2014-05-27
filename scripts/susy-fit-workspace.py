@@ -22,7 +22,7 @@ def run():
     parser.add_argument(
         'yields_file', help=_yields_file)
     parser.add_argument(
-        '-y','--fit-config', required=True, help=_config_file)
+        '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
     parser.add_argument('-m', '--magic', action='store_true', help=_hf_magic)

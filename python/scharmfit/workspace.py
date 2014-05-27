@@ -283,8 +283,8 @@ class Workspace(object):
 
     def do_histfitter_magic(self, input_workspace):
         """
-        Here we break into histfitter voodoo. What this actually does
-        is one of the great mysteries of science.
+        Here we break into histfitter voodoo. The functions here are pulled
+        out of the HistFitter.py script.
         """
         from scharmfit import utils
         utils.load_susyfit()

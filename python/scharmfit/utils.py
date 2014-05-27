@@ -18,19 +18,27 @@ def make_dir_if_none(hists_dir):
         else:
             raise
 
-def load_susyfit():
+def load_susyfit(use_histfitter_version=False):
     """
     Loads the root interfaces with HistFitter
     """
-    from distutils import spawn
-    from os.path import dirname
-    hf_path = spawn.find_executable('HistFitter.py')
-    if hf_path is None:
-        raise OSError("can't find HistFitter.py, is it in PATH?")
-    hf = dirname(hf_path)
+    if use_histfitter_version:
+        # assume libSusyFitter is in some local HistFitter package
+        from distutils import spawn
+        from os.path import dirname
+        hf_path = spawn.find_executable('HistFitter.py')
+        if hf_path is None:
+            raise OSError("can't find HistFitter.py, is it in PATH?")
+        hf = dirname(hf_path)
+        lib_path = '{}/../lib'.format(hf)
+    else:
+        # assume that libSusyFitter.so is in this package
+        import inspect
+        here = inspect.getsourcefile(make_dir_if_none)
+        lib_path = '{}/../../lib'.format(here)
     import ROOT
     with OutputFilter(accept_re='ERROR'):
-        ROOT.gSystem.Load('{}/../lib/libSusyFitter.so'.format(hf))
+        ROOT.gSystem.Load('{}/libSusyFitter.so'.format(lib_path))
 
 class OutputFilter(object):
     """

@@ -19,7 +19,9 @@ Less important goals may include:
 
 Running `install.py install` will add a `.pth` file to your local
 python installation. This will allow scripts to find the needed
-module.  All top level scripts are in the `scripts` directory:
+module. You'll also need to run `make` in the `src/` directory to
+build the HistFitter fitting functions. All top level scripts are in
+the `scripts` directory:
 
  - `susy-fit-*`: try the `-h` flag to get help.
  - `susy-fit-test.py`: this segfaults on some computers I use, even

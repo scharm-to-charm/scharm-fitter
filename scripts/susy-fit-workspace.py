@@ -5,7 +5,8 @@ Workspace generator for scharm to charm search.
 _yields_file = 'yaml file giving the yields'
 _config_file = (
     'file listing signal / control regions, will be generated if missing')
-_hf_magic = 'run histfitter stuff'
+_hf_magic = "produce '_upperlimit' and 'afterFit' files"
+
 import argparse, re, sys, os
 from os.path import isfile, isdir, join
 from itertools import chain
@@ -25,7 +26,8 @@ def run():
         '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-m', '--magic', action='store_true', help=_hf_magic)
+    parser.add_argument('-s', '--hf-stuff', action='store_true',
+                        help=_hf_magic)
     parser.add_argument('-v', '--verbose', action='store_true')
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
@@ -44,7 +46,7 @@ def _multispaces(config):
 
     misc_config = dict(
         backgrounds=bgs, out_dir=config.out_dir,
-        debug=config.debug, do_hf=config.magic, verbose=config.verbose)
+        debug=config.debug, do_hf=config.hf_stuff, verbose=config.verbose)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -57,7 +59,8 @@ def _multispaces(config):
 
     # relies on HistFitter's global variables, has to be run after
     # booking a bunch of workspaces.
-    do_upper_limits(verbose=config.verbose)
+    print 'calculating upper limits (may take a while)'
+    do_upper_limits(verbose=config.verbose, prefix='scharm')
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     cfg_name, fit_config = fit_configuration

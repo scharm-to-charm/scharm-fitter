@@ -491,12 +491,12 @@ def get_signal_points_and_backgrounds(all_yields):
     return list(signal_points), list(backgrounds)
 
 
-def do_upper_limits(verbose=False):
+def do_upper_limits(verbose=False, prefix='upperlim'):
     from scharmfit import utils
     utils.load_susyfit()
     from ROOT import ConfigMgr, Util
     mgr = ConfigMgr.getInstance()
-    mgr.m_outputFileName = 'upperlim.root'
+    mgr.m_outputFileName = prefix + '.root'
     mgr.m_nToys = 1
     mgr.m_calcType = 2
     mgr.m_testStatType = 3

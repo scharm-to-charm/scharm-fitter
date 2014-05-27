@@ -13,13 +13,16 @@ The aim is to provide:
 Less important goals may include:
 
  - Scripts to perform sanity checks on the inputs / outputs,
+
+What's not currently included: 
+
+ - The suite of HistFitter scripts like `YieldsTable`, `SysTable`, etc.
  - Plotting code.
 
 ### Quickstart
 
 Running `install.py install` will add a `.pth` file to your local
-python installation. This will allow scripts to find the needed
-module. You'll also need to run `make` in the `src/` directory to
+python installation. It will also run `make` in the `src/` directory to
 build the HistFitter fitting functions. All top level scripts are in
 the `scripts` directory:
 
@@ -28,6 +31,18 @@ the `scripts` directory:
    though it's doing very little. I suspect it has something to do
    with a bad pyroot install, but if it fails, everything else here
    will as well.
+
+Example example inputs are in `example_data/`. If `scripts/` has been
+added to your `PATH`, the following command should produce some
+workspaces:
+
+```bash
+cd example_data
+susy-fit-workspace.py inputs.yml -c configuration.yml -s
+```
+
+Adding the `-s` flag will produce more workspaces, including the
+`_afterFit.root` and `_upperlimits.root` files.
 
 ### Input / Output format
 
@@ -88,10 +103,13 @@ creation routine. This is formatted as:
 CONFIG_NAME:
   control_regions: [REG1, REG2, ...]
   signal_region: SIG_REGION
+  combine_tagging: TRUE_OR_FALSE
 ```
 
 This file will be created (although not necessarily with sensible
-regions) if it doesn't exist.
+regions) if it doesn't exist. The option `combine_tagging` tells the
+fitter whether it should add the flavor tagging systematics in
+quadrature.
 
 ### Outstanding issues:
 

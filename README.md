@@ -95,8 +95,6 @@ regions) if it doesn't exist.
 
 ### Outstanding issues:
 
- - Need to add relative systematics to the fit (currently they will be
-   ignored).
  - The code may not be very robust to incorrectly formatted
    files. Invalid yaml won't get through, but no promises about
    anything that doesn't conform to the above schema.

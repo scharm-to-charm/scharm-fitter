@@ -14,7 +14,7 @@ Less important goals may include:
 
  - Scripts to perform sanity checks on the inputs / outputs,
 
-What's not currently included: 
+What's not currently included:
 
  - The suite of HistFitter scripts like `YieldsTable`, `SysTable`, etc.
  - Plotting code.
@@ -32,7 +32,7 @@ the `scripts` directory:
    with a bad pyroot install, but if it fails, everything else here
    will as well.
 
-Example example inputs are in `example_data/`. If `scripts/` has been
+Example inputs are in `example_data/`. If `scripts/` has been
 added to your `PATH`, the following command should produce some
 workspaces:
 

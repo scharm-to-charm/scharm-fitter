@@ -34,6 +34,7 @@ def run():
     _multispaces(args)
 
 def _multispaces(config):
+    """book one workspace for each signal point"""
 
     with open(config.yields_file) as yields_yml:
         yields = yaml.load(yields_yml)
@@ -63,6 +64,7 @@ def _multispaces(config):
     do_upper_limits(verbose=config.verbose, prefix='scharm')
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
+    """book the workspace for one signal point"""
     cfg_name, fit_config = fit_configuration
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
@@ -108,7 +110,7 @@ def _get_config(cfg_name, yields_dict):
     else:
         def_config = {
             'control_regions': [
-                'cr_1l', 'cr_df', 'cr_z'
+                'cr_w', 'cr_t', 'cr_z'
                 ],
             'signal_region': 'signal',
             'combine_tagging': True,

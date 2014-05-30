@@ -60,8 +60,9 @@ def _multispaces(config):
 
     # relies on HistFitter's global variables, has to be run after
     # booking a bunch of workspaces.
-    print 'calculating upper limits (may take a while)'
-    do_upper_limits(verbose=config.verbose, prefix='scharm')
+    if config.hf_stuff:
+        print 'calculating upper limits (may take a while)'
+        do_upper_limits(verbose=config.verbose, prefix='scharm')
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     """book the workspace for one signal point"""

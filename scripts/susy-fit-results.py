@@ -1,72 +1,42 @@
 #!/usr/bin/env python2.7
-import ROOT
-ROOT.PyConfig.IgnoreCommandLineOptions = True
-from ROOT import gROOT,gSystem,gDirectory
+"""
+Cleaned up version of PrintFitResults, I'm mainly interested in using it
+to get the fit parameters as a yaml file.
+"""
 
-from scharmfit.utils import load_susyfit
-load_susyfit()
-# from ROOT import ConfigMgr,FitConfig #this module comes from gSystem.Load("libSusyFitter.so")
-gROOT.Reset()
+def _dict_from_par(ip):
+  return {
+    'v': ip.getVal(),
+    'e': ip.getError(),
+    'errup': ip.getErrorLo(),
+    'errdn': ip.getErrorHi()
+    }
 
-from ROOT import TFile, RooWorkspace, TObject, TString, RooAbsReal, RooRealVar, RooFitResult, RooDataSet, RooAddition, RooArgSet,RooAbsData,RooRandom 
-from ROOT import Util, TMath
-from ROOT import RooFit
-from ROOT import RooExpandedFitResult
-    
-import os
-import sys
-from sys import exit
+def get_fit_results( filename, resultName="RooExpandedFitResult_afterFit"):
+  from scharmfit.utils import load_susyfit
+  load_susyfit()
 
-import pickle
+  from ROOT import Util, gROOT
 
+  gROOT.Reset()
 
-  
-
-def latexfitresults( filename, resultName="RooExpandedFitResult_afterFit", outName="test.tex" ):
-
-  ############################################
   workspacename = 'w'
   w = Util.GetWorkspaceFromFile(filename,workspacename)
 
   if w==None:
     print "ERROR : Cannot open workspace : ", workspacename
-    sys.exit(1) 
+    sys.exit(1)
 
   result = w.obj(resultName)
   if result==None:
     print "ERROR : Cannot open fit result ", resultName
     sys.exit(1)
 
-  #####################################################
-
-  regSys = {}
-
   # calculate error per parameter on  fitresult
-  fpf = result.floatParsFinal() 
+  fpf = result.floatParsFinal()
   fpi = result.floatParsInit()
 
-  '''
-  // P r i n t   l a t ex   t a b l e   o f   p a r a m e t e r s   o f   p d f 
-  // --------------------------------------------------------------------------
-
-
-  // Print parameter list in LaTeX for (one column with names, one column with values)
-  params->printLatex() ;
-
-  // Print parameter list in LaTeX for (names values|names values)
-  params->printLatex(Columns(2)) ;
-
-  // Print two parameter lists side by side (name values initvalues)
-  params->printLatex(Sibling(*initParams)) ;
-
-  // Print two parameter lists side by side (name values initvalues|name values initvalues)
-  params->printLatex(Sibling(*initParams),Columns(2)) ;
-
-  // Write LaTex table to file
-  params->printLatex(Sibling(*initParams),OutputFile("rf407_latextables.tex")) ;
-  '''
-
-  ####fpf.printLatex(RooFit.Format("NE",RooFit.AutoPrecision(2),RooFit.VerbatimName()),RooFit.Sibling(fpi),RooFit.OutputFile(outName)) 
+  regSys = {}
 
   # set all floating parameters constant
   for idx in range(fpf.getSize()):
@@ -97,7 +67,6 @@ def latexfitresults( filename, resultName="RooExpandedFitResult_afterFit", outNa
 # MAIN
 
 if __name__ == "__main__":
-  
   import os, sys
   import getopt
   def usage():
@@ -107,9 +76,8 @@ if __name__ == "__main__":
     print "*** Options are: "
     print "-c <analysis name>: single name accepted only (OBLIGATORY) "
     print "-w <workspaceFileName>: single name accepted only (OBLIGATORY) ;   if multiple channels/regions given in -c, assumes the workspace file contains all channels/regions"
-    sys.exit(0)        
+    sys.exit(0)
 
-  wsFileName='/results/MyOneLeptonKtScaleFit_HardLepR17_BkgOnlyKt_combined_NormalMeasurement_model_afterFit.root'
   try:
     opts, args = getopt.getopt(sys.argv[1:], "o:c:w:m:f:s:%b")
   except:
@@ -117,14 +85,11 @@ if __name__ == "__main__":
   if len(opts)<1:
     usage()
 
-  analysisName = ''
   outputFileName="default"
   method="1"
   showAfterFitError=True
   showPercent=False
   for opt,arg in opts:
-    if opt == '-c':
-      analysisName=arg
     if opt == '-w':
       wsFileName=arg
 
@@ -132,14 +97,6 @@ if __name__ == "__main__":
   if not showAfterFitError:
     resultName =  'RooExpandedFitResult_beforeFit'
 
-  regSys = latexfitresults(wsFileName,resultName,outputFileName)
-
-  line_chanSysTight = str(regSys) + analysisName
-
-  outputFileName = "fitresult_" + analysisName + ".tex"
-  
-  f = open(outputFileName, 'w')
-  f.write( line_chanSysTight )
-  f.close()
-  print "\nwrote results in file: %s"%(outputFileName)
+  regSys = get_fit_results(wsFileName,resultName)
+  print regSys
 

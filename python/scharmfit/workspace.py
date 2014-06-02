@@ -355,8 +355,6 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                     varied_yield = systematic_yields[syst][region][process][0]
                 except KeyError as err:
                     loc = syst, region, process
-                    warnings.warn('no val found for {}, using 0.0'.format(
-                            loc))
                     varied_yield = 0.0
                 rel_syst_err = varied_yield / nom_yield - 1.0
                 rel_syst_err /= 2.0 # cut in half because it's symmetric
@@ -370,7 +368,10 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
 
                 def var(sys_name):
                     """get the relative variation from sys_name"""
-                    raw = systematic_yields[sys_name][region][process][0]
+                    try:
+                        raw = systematic_yields[sys_name][region][process][0]
+                    except KeyError as err:
+                        raw = 0.0
                     return raw / nom_yield
 
                 rel_systs[region][process][syst] = (var(sdown), var(sup))

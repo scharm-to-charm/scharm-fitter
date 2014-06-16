@@ -51,8 +51,10 @@ def _multispaces(config):
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
-    for signal_point in signal_points:
-        for cfg_name, fit_cfg in fit_configs.iteritems():
+    for cfg_name, fit_cfg in fit_configs.iteritems():
+        print 'booking background with config {}'.format(cfg_name)
+        _book_signal_point(yields, '', (cfg_name, fit_cfg), misc_config)
+        for signal_point in signal_points:
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)
             _book_signal_point(
@@ -75,7 +77,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
         combine_tagging_syst=fit_config.get('combine_tagging', True))
     if misc_config['debug']:
         fit.debug = True
-    fit.set_signal(signal_point)
+    if signal_point:
+        fit.set_signal(signal_point)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
 
@@ -95,7 +98,7 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 
     # here be black magic
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
-        signal_point, meas=fit.meas_name)
+        signal_point or 'background', meas=fit.meas_name)
     fit.do_histfitter_magic(ws_name, verbose=misc_config['verbose'])
     ROOT.gDirectory.GetList().Delete()
 

@@ -119,7 +119,7 @@ class Workspace(object):
             raise ValueError('tried to overwrite {} with {}'.format(
                     self.signal_point, signal_name))
         self.signal_point = signal_name
-        self.meas.SetPOI("mu_{}".format(signal_name))
+        self.meas.SetPOI("mu_SIG")
 
     # ____________________________________________________________________
     # functions to add samples to the channel
@@ -165,7 +165,7 @@ class Workspace(object):
             signal.SetNormalizeByTheory(True)
 
             # set a floating normalization factor
-            signal.AddNormFactor('mu_{}'.format(self.signal_point),1,0,2)
+            signal.AddNormFactor('mu_SIG',1,0,2)
 
             # --- add systematics ---
             syst_dict = self._systematics[region][self.signal_point]
@@ -218,7 +218,8 @@ class Workspace(object):
             self.meas.AddChannel(channel)
 
         # don't want to save the output files in the current dir
-        self.meas.SetOutputFilePrefix(join(results_dir,self.signal_point))
+        self.meas.SetOutputFilePrefix(
+            join(results_dir, self.signal_point or 'background'))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)

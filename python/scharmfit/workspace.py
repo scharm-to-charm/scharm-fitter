@@ -308,8 +308,10 @@ class Workspace(object):
         fc.m_signalChannels.push_back('signal')
 
         accept_strings = {'ERROR:','WARNING:'} if not verbose else {''}
+        # this snapshot error appears to be a hackish check, can ignore
+        veto = {'snapshot_paramsVals_initial'}
 
-        with OutputFilter(accept_strings=accept_strings):
+        with OutputFilter(accept_strings=accept_strings, veto_strings=veto):
             Util.GenerateFitAndPlot(
                 fc.m_name,
                 "ana_name",

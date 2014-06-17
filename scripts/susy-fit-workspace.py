@@ -5,7 +5,8 @@ Workspace generator for scharm to charm search.
 _yields_file = 'yaml file giving the yields'
 _config_file = (
     'file listing signal / control regions, will be generated if missing')
-_hf_magic = "produce '_upperlimit' and 'afterFit' files"
+_after_fit = "produce and 'afterFit' files"
+_upper_limits = "produce histfitter 'upper limit' stuff"
 
 import argparse, re, sys, os
 from os.path import isfile, isdir, join
@@ -26,8 +27,11 @@ def run():
         '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-s', '--hf-stuff', action='store_true',
-                        help=_hf_magic)
+    hf_action = parser.add_mutually_exclusive_group()
+    hf_action.add_argument('-f', '--after-fit', action='store_true',
+                           help=_after_fit)
+    hf_action.add_argument('-l', '--upper-limit', action='store_true',
+                           help=_upper_limits)
     parser.add_argument('-v', '--verbose', action='store_true')
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
@@ -45,9 +49,10 @@ def _multispaces(config):
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
 
+    run_histfitter = config.after_fit or config.upper_limit
     misc_config = dict(
         backgrounds=bgs, out_dir=config.out_dir,
-        debug=config.debug, do_hf=config.hf_stuff, verbose=config.verbose)
+        debug=config.debug, do_hf=run_histfitter, verbose=config.verbose)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -62,7 +67,7 @@ def _multispaces(config):
 
     # relies on HistFitter's global variables, has to be run after
     # booking a bunch of workspaces.
-    if config.hf_stuff:
+    if config.upper_limit:
         print 'calculating upper limits (may take a while)'
         do_upper_limits(verbose=config.verbose, prefix='scharm')
 

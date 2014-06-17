@@ -6,10 +6,11 @@ to get the fit parameters as a yaml file.
 
 def _dict_from_par(ip):
     return {
-        'nom': ip.getVal(),
-        'unct': ip.getError(),
-        'unctdn': ip.getErrorLo(),
-        'unctup': ip.getErrorHi()
+        'value': ip.getVal(),
+        'error': ip.getError(),
+        # there are these other guys, but not sure anyone cares...
+        # 'unctdn': ip.getErrorLo(),
+        # 'unctup': ip.getErrorHi()
       }
 
 def get_fit_results( filename, resultName="RooExpandedFitResult_afterFit"):

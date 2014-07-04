@@ -96,12 +96,12 @@ cat <<EOF >> $TESTTABLES
 EOF
 
 # replace region names
-SRE='s/signal\\_mct150/Signal/'
+SRE='s/signal\\_mct150/Signal (\$m_{\\rm CT} > 150\\,{\\rm GeV}\$)/'
 WRE='s/cr\\_w\\_mct150/CRW/'
 ZRE='s/cr\\_z/CRZ/'
 TRE='s/cr\\_t/CRT/'
-sed -ri -e $SRE -e $WRE -e $ZRE -e $TRE $TABOUT
-sed -ri -e $SRE -e $WRE -e $ZRE -e $TRE $YIELDOUT
+sed -i -e "$SRE" -e $WRE -e $ZRE -e $TRE $TABOUT
+sed -i -e "$SRE" -e $WRE -e $ZRE -e $TRE $YIELDOUT
 
 # write the mu table
 susy-fit-results.py  $input | susy-fit-mutable.py -o $OUTDIR/mutable.tex

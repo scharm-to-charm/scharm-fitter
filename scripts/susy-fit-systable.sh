@@ -96,7 +96,7 @@ cat <<EOF >> $TESTTABLES
 EOF
 
 # replace region names
-SRE='s/signal\\_mct150/Signal (\$m_{\\rm CT} > 150\\,{\\rm GeV}\$)/'
+SRE='s/signal\\_mct150/Signal (\$m_{\\rm CT} > 150\\,\\text{GeV}\$)/'
 WRE='s/cr\\_w\\_mct150/CRW/'
 ZRE='s/cr\\_z/CRZ/'
 TRE='s/cr\\_t/CRT/'

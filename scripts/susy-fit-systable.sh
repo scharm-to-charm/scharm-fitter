@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
+OUTFILE=bg_fit.tex
+REGIONS=signal_mct150,cr_w_mct150,cr_z,cr_t
+
 usage() {
-    echo "${0##*/} [-h] <afterFit file>"
+    echo "${0##*/} [-h] [-o <out file name>] <afterFit file>"
 }
 doc() {
     usage
     cat <<EOF
 
-Wrapper on the SysTable.py HistFitter script
+Wrapper on the SysTable.py HistFitter script. Writes to $OUTFILE by default.
 EOF
 }
 
@@ -16,6 +19,9 @@ do
     case $1 in
 	--help) doc; exit 1;;
 	-h) doc; exit 1;;
+	--naked) NAKED=1; shift;;
+	-n) NAKED=1; shift;;
+	-o) shift; OUTFILE=$1; shift;;
 	*)
 	    if [[ -n $input ]] 
 		then
@@ -35,7 +41,15 @@ then
     exit 1
 fi
 
-cat <<EOF > bg_fit.tex
+# __________________________________________________________________________
+# run the script, print outputs
+
+mkfifo texout
+SysTable.py -c $REGIONS -w $input -o texout > /dev/null &
+
+if [[ ! $NAKED ]]
+    then
+    cat <<EOF > $OUTFILE
 \documentclass{beamer}
 \useoutertheme{infolines}
 \setbeamertemplate{navigation symbols}{}
@@ -47,15 +61,18 @@ cat <<EOF > bg_fit.tex
 \begin{tiny}
 
 EOF
+    cat texout >> $OUTFILE
 
-mkfifo texout
-SysTable.py -c signal_mct150,cr_w_mct150,cr_z,cr_t -w $input -o texout &
-cat texout >> bg_fit.tex
-rm texout
-
-cat <<EOF >> bg_fit.tex
+    cat <<EOF >> $OUTFILE
 
 \end{tiny}
 
 \end{document}
 EOF
+
+else
+    cat texout > $OUTFILE
+fi
+
+rm texout
+

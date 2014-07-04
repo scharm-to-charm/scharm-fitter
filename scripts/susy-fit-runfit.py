@@ -9,13 +9,17 @@ import argparse, re, sys, glob
 from scharmfit.calculators import UpperLimitCalc, CLsCalc
 from os import walk
 
+# look for these guys to fit
+_magic_file_name = 'scharm*_combined_*_model.root'
+
 def run():
     d = '(default: %(default)s)'
     outputs = {'ul':'upper-limits.yml', 'cls':'cls.yml'}
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('workspace_dir')
-    parser.add_argument('-c','--calc-type', choices=outputs.keys(),
-                        required=True)
+    parser.add_argument(
+        '-c','--calc-type', choices=outputs.keys(), default='cls',
+        help=d)
 
     # default output file depends on what you're running
     def_string = ', '.join('{}: {}'.format(*x) for x in outputs.iteritems())
@@ -36,7 +40,7 @@ def _make_calc_file(config):
     # loop over all the workspaces, fit them all
     for base, dirs, files in walk(config.workspace_dir):
         if not dirs and files:
-            workspaces = glob.glob(join(base,'*_combined_*_model.root'))
+            workspaces = glob.glob(join(base, _magic_file_name))
 
             # the configuration name (key under which the fit result
             # is saved) is the path from the directory we run on to

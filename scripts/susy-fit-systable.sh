@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-OUTFILE=bg_fit.tex
+OUTDIR=bg_fit
 REGIONS=signal_mct150,cr_w_mct150,cr_z,cr_t
+SAMPLES=Wjets,Zjets,top,other
 
 usage() {
     echo "${0##*/} [-h] [-o <out file name>] <afterFit file>"
@@ -10,7 +11,8 @@ doc() {
     usage
     cat <<EOF
 
-Wrapper on the SysTable.py HistFitter script. Writes to $OUTFILE by default.
+Wrapper on the SysTable.py and YieldsTable.py HistFitter scripts.
+Writes to $OUTDIR by default.
 EOF
 }
 
@@ -19,11 +21,9 @@ do
     case $1 in
 	--help) doc; exit 1;;
 	-h) doc; exit 1;;
-	--naked) NAKED=1; shift;;
-	-n) NAKED=1; shift;;
-	-o) shift; OUTFILE=$1; shift;;
+	-o) shift; OUTDIR=$1; shift;;
 	*)
-	    if [[ -n $input ]] 
+	    if [[ -n $input ]]
 		then
 		usage
 		echo 'too many inputs'
@@ -44,35 +44,64 @@ fi
 # __________________________________________________________________________
 # run the script, print outputs
 
-mkfifo texout
-SysTable.py -c $REGIONS -w $input -o texout > /dev/null &
+if [[ ! -d $OUTDIR ]]
+then
+    mkdir $OUTDIR
+fi
 
-if [[ ! $NAKED ]]
-    then
-    cat <<EOF > $OUTFILE
+# start with the systematics table
+TABOUT=$OUTDIR/systable.tex
+SysTable.py -c $REGIONS -w $input -o $TABOUT > /dev/null
+
+YIELDOUT=$OUTDIR/yieldtable.tex
+YieldsTable.py -c $REGIONS -w $input -o $YIELDOUT -s $SAMPLES > /dev/null
+rm $OUTDIR/yieldtable.pickle
+
+# also make a test presentation
+TESTTABLES=test_tables.tex
+
+cat <<EOF > $TESTTABLES
 \documentclass{beamer}
 \useoutertheme{infolines}
 \setbeamertemplate{navigation symbols}{}
 
 \title{SysTable}
 \author[$USER]{The Mystery (Wo)Man}
+\institute{Yal\`e}
 \begin{document}
 
 \begin{tiny}
-
+\begin{frame}
+\begin{table}
 EOF
-    cat texout >> $OUTFILE
 
-    cat <<EOF >> $OUTFILE
+cat $TABOUT >> $TESTTABLES
 
+cat <<EOF >> $TESTTABLES
+
+\end{table}
+\end{frame}
+
+\begin{frame}
+\begin{table}
+EOF
+
+cat $YIELDOUT >> $TESTTABLES
+
+cat <<EOF >> $TESTTABLES
+\end{table}
+\end{frame}
 \end{tiny}
-
 \end{document}
 EOF
 
-else
-    cat texout > $OUTFILE
-fi
+# replace region names
+SRE='s/signal\\_mct150/Signal/'
+WRE='s/cr\\_w\\_mct150/CRW/'
+ZRE='s/cr\\_z/CRZ/'
+TRE='s/cr\\_t/CRT/'
+sed -ri -e $SRE -e $WRE -e $ZRE -e $TRE $TABOUT
+sed -ri -e $SRE -e $WRE -e $ZRE -e $TRE $YIELDOUT
 
-rm texout
-
+# write the mu table
+susy-fit-results.py  $input | susy-fit-mutable.py -o $OUTDIR/mutable.tex

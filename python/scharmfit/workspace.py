@@ -24,14 +24,16 @@ class Workspace(object):
     meas_name = 'meas'
 
     # input file schema
-    fixed_backgrounds = {'other'}
     baseline_yields_key = _baseline_yields_key
     yield_systematics_key = _yield_systematics_key
     relative_systematics_key = _relative_systematics_key
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, yields, backgrounds, combine_tagging_syst=True):
+    def __init__(self, yields, backgrounds, combine_tagging_syst=True,
+                 fixed_backgrounds={'other'}):
+        _check_subset(fixed_backgrounds, backgrounds)
+        self.fixed_backgrounds = fixed_backgrounds
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
@@ -54,24 +56,9 @@ class Workspace(object):
 
         # create / configure the measurement
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
-
-        # ACHTUNG: I we get errors about nom_alpha_* parameters being
-        # defined multiple times when I turn these lines off, but
-        # setting the parameters as constant definitely isn't the
-        # right way to solve the problem. For now we'll just filter
-        # these errors they seem harmless.
-        #
-        # for syst in chain(*_split_systematics(yield_systematics)):
-        #     syst_parameter_name = 'alpha_{}'.format(syst)
-        #     self.meas.AddConstantParam(syst_parameter_name)
         self.meas.SetLumi(1.0)
         lumiError = 0.039       # NOTE: check this (or make configurable)
         self.meas.SetLumiRelErr(lumiError)
-        # # SEE ABOVE
-        # self.meas.AddConstantParam("Lumi")
-        # for bg in self.backgrounds:
-        #     if not bg in self.fixed_backgrounds:
-        #         self.meas.AddConstantParam('mu_{}'.format(bg))
         self.meas.SetExportOnly(True)
 
         self.signal_point = None
@@ -357,8 +344,7 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                 try:
                     varied_yield = systematic_yields[syst][region][process][0]
                 except KeyError as err:
-                    # ACHTUNG: should we skip missing?
-                    continue
+                    varied_yield = nom_yield # missing means no variation
                 rel_syst_err = varied_yield / nom_yield - 1.0
                 rel_syst_err /= 2.0 # cut in half because it's symmetric
                 rel_syst_range = ( 1 - rel_syst_err, 1 + rel_syst_err)
@@ -369,15 +355,12 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                 sdown = syst + _asym_suffix_down
                 sup = syst + _asym_suffix_up
 
-                # ACHTUNG: also need to figure out what to do with missing
-                # stuff here. Should probably just get angry if only
-                # one is missing.
                 def var(sys_name):
                     """get the relative variation from sys_name"""
                     try:
                         raw = systematic_yields[sys_name][region][process][0]
                     except KeyError as err:
-                        raw = 0.0
+                        return 1.0 # missing means no variation
                     return raw / nom_yield
 
                 rel_systs[region][process][syst] = (var(sdown), var(sup))
@@ -482,6 +465,12 @@ def _get_sp(proc):
         return None
     # return int(schstr), int(lspstr)
     return proc
+
+def _check_subset(subset, superset):
+    """check to make sure each entry in the first arg is in the second"""
+    for xx in subset:
+        if not xx in superset:
+            raise ValueError("{} not in {}".format(xx, ', '.join(superset)))
 
 def get_signal_points_and_backgrounds(all_yields):
     yields = all_yields[_baseline_yields_key]

@@ -5,7 +5,7 @@ REGIONS=signal_mct150,cr_w_mct150,cr_z,cr_t
 SAMPLES=Wjets,Zjets,top,other
 
 usage() {
-    echo "${0##*/} [-h] [-o <out file name>] <afterFit file>"
+    echo "${0##*/} [-ht] [-o <output directory>] <afterFit file>"
 }
 doc() {
     usage
@@ -13,6 +13,10 @@ doc() {
 
 Wrapper on the SysTable.py and YieldsTable.py HistFitter scripts.
 Writes to $OUTDIR by default.
+
+Options:
+ -t make test presentation
+
 EOF
 }
 
@@ -22,6 +26,7 @@ do
 	--help) doc; exit 1;;
 	-h) doc; exit 1;;
 	-o) shift; OUTDIR=$1; shift;;
+	-t) MKTEST=1; shift;;
 	*)
 	    if [[ -n $input ]]
 		then
@@ -58,7 +63,11 @@ YieldsTable.py -c $REGIONS -w $input -o $YIELDOUT -s $SAMPLES > /dev/null
 rm $OUTDIR/yieldtable.pickle
 
 # also make a test presentation
-TESTTABLES=test_tables.tex
+TESTTABLES=/dev/null
+if [[ $MKTEST ]]
+    then
+    TESTTABLES=test_tables.tex
+fi
 
 cat <<EOF > $TESTTABLES
 \documentclass{beamer}

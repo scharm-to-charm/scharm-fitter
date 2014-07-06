@@ -66,7 +66,7 @@ rm $OUTDIR/yieldtable.pickle
 TESTTABLES=/dev/null
 if [[ $MKTEST ]]
     then
-    TESTTABLES=test_tables.tex
+    TESTTABLES=$OUTDIR/test_tables.tex
 fi
 
 cat <<EOF > $TESTTABLES

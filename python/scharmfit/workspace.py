@@ -30,8 +30,8 @@ class Workspace(object):
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, yields, backgrounds, combine_tagging_syst=True,
-                 fixed_backgrounds={'other'}):
+    def __init__(self, yields, backgrounds, fixed_backgrounds,
+                 combine_tagging_syst=True):
         _check_subset(fixed_backgrounds, backgrounds)
         self.fixed_backgrounds = fixed_backgrounds
         import ROOT

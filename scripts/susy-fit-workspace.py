@@ -79,8 +79,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     # have been filed. For now just using output filters.
     fit = Workspace(
         yields, misc_config['backgrounds'],
-        combine_tagging_syst=fit_config.get('combine_tagging', True),
-        fixed_backgrounds=fit_config.get('fixed_backgrounds',['other']))
+        combine_tagging_syst=fit_config.get('combine_tagging', False),
+        fixed_backgrounds=fit_config['fixed_backgrounds']
     if misc_config['debug']:
         fit.debug = True
     if signal_point:

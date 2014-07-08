@@ -207,8 +207,9 @@ class Workspace(object):
             self.meas.AddChannel(channel)
 
         # don't want to save the output files in the current dir
+        bgfit = 'pseudodata' if self.pseudodata_regions else 'background'
         self.meas.SetOutputFilePrefix(
-            join(results_dir, self.signal_point or 'background'))
+            join(results_dir, self.signal_point or bgfit))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
@@ -279,8 +280,6 @@ class Workspace(object):
         mgr.initialize()
         mgr.setNToys(1)
 
-        # the fit configs seem to need unique names, use random numbers
-        import random
         fc_number = 0
         # such a hack... but this is to check if the fit config is unique
         with OutputFilter():

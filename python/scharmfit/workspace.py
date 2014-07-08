@@ -139,7 +139,8 @@ class Workspace(object):
             # The signal yield is a list with two entries (yield, stat_error)
             sig_yield = yields[region][self.signal_point]
             signal_count = sig_yield[self._nkey]
-            signal.SetValue(signal_count)
+            # signal.SetValue(signal_count)
+            _set_value(signal, signal_count)
             sig_stat_error = sig_yield[self._errkey]
             signal.GetHisto().SetBinError(1,sig_stat_error)
             # TODO: see if we need to call ActivateStatError(). For
@@ -168,7 +169,8 @@ class Workspace(object):
         self.region_sums[region] += bg_n
         sname = '_'.join([region,bg])
         background = self.hf.Sample(sname)
-        background.SetValue(bg_n)
+        _set_value(background, bg_n)
+        # background.SetValue(bg_n)
         stat_error = base_vals[self._errkey]
         background.GetHisto().SetBinError(1,stat_error)
         if not bg in self.fixed_backgrounds:
@@ -471,6 +473,21 @@ def _check_subset(subset, superset):
     for xx in subset:
         if not xx in superset:
             raise ValueError("{} not in {}".format(xx, ', '.join(superset)))
+
+def _set_value(sample, value):
+    """
+    Workaround for the crashing Sample.SetValue method.
+
+    Probably leaks memory, I don't care any more, because ROOT is designed
+    to leak memory. It's designed to embody every shit programming
+    paradigm, and invent a few more, yet we still use it.
+    Thanks ATLAS, thanks for training a generation of physicists on
+    this shit code, what a fucking waste of life...
+    """
+    sname = sample.GetName()
+    hist = TH1D(sname + '_hist', '', 1, 0, 1)
+    hist.SetBinContent(1, value)
+    sample.SetHist(hist)
 
 def get_signal_points_and_backgrounds(all_yields):
     yields = all_yields[_baseline_yields_key]

@@ -6,7 +6,9 @@ def die():
     chan = hf.Channel('chan')
     chan.SetData(10)
     bg = hf.Sample('somesample')
-    bg.SetValue(10)
+    hist = ROOT.TH1D('fuck','root', 1, 0, 1)
+    hist.SetBinContent(1, 10)
+    bg.SetHisto(hist)
     chan.AddSample(bg)
     print 'done, no segfault!'
 

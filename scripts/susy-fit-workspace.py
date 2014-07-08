@@ -77,6 +77,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
+    ROOT.gDirectory.GetList().Delete() # maybe fix?
+
     fit = Workspace(
         yields, misc_config['backgrounds'],
         combine_tagging_syst=fit_config.get('combine_tagging', False),
@@ -99,14 +101,13 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 
     if not misc_config['do_hf']:
         fit.cleanup_results_dir(out_dir)
-        ROOT.gDirectory.GetList().Delete()
         return
 
     # here be black magic
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
         signal_point or 'background', meas=fit.meas_name)
     fit.do_histfitter_magic(ws_name, verbose=misc_config['verbose'])
-    ROOT.gDirectory.GetList().Delete()
+    # ROOT.gDirectory.GetList().Delete()
 
 # _______________________________________________________________________
 # helpers
@@ -123,8 +124,8 @@ def _get_config(cfg_name, yields_dict):
                 'cr_w', 'cr_t', 'cr_z'
                 ],
             'signal_region': 'signal',
-            'combine_tagging': True,
-            'fixed_backgrouns': ['other'],
+            'combine_tagging': False,
+            'fixed_backgrounds': ['other'],
             }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:

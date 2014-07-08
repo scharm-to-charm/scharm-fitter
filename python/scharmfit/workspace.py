@@ -484,10 +484,11 @@ def _set_value(sample, value):
     Thanks ATLAS, thanks for training a generation of physicists on
     this shit code, what a fucking waste of life...
     """
+    from ROOT import TH1D
     sname = sample.GetName()
     hist = TH1D(sname + '_hist', '', 1, 0, 1)
     hist.SetBinContent(1, value)
-    sample.SetHist(hist)
+    sample.SetHisto(hist)
 
 def get_signal_points_and_backgrounds(all_yields):
     yields = all_yields[_baseline_yields_key]

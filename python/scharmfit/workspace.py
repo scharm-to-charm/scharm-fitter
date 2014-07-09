@@ -162,8 +162,6 @@ class Workspace(object):
             # --- add systematics ---
             syst_dict = self._systematics[region][self.signal_point]
             for syst, var in syst_dict.iteritems():
-                if var[0] > var[1]:
-                    print region, syst, self.signal_point, var
                 signal.AddOverallSys(syst, *var)
 
             chan.AddSample(signal)
@@ -188,8 +186,6 @@ class Workspace(object):
         # --- add systematics ---
         syst_dict = self._systematics[region].get(bg, {})
         for syst, var in syst_dict.iteritems():
-            if var[0] > var[1]:
-                print region, syst, bg, var
             background.AddOverallSys(syst, *var)
 
         chan.AddSample(background)
@@ -343,9 +339,10 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     # build all the relative systematics
     for region, process_dict in base_yields.iteritems():
         rel_systs[region] = {}
-        for process, (nom_yield, err) in process_dict.iteritems():
+        for process, vals in process_dict.iteritems():
             if process == 'data':
                 continue
+            nom_yield, err = vals
             rel_systs[region][process] = {}
 
             # start with symmetric ones

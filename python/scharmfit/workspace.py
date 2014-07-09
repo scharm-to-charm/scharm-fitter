@@ -68,6 +68,8 @@ class Workspace(object):
         self.blinded = True
         self.pseudodata_regions = {}
 
+        self._has_sr = False
+
         # we have to add the channels to the measurement _after_
         # adding data to the channels.  We're using pseudodata, which
         # means we have to save the channels and add them later.
@@ -90,10 +92,12 @@ class Workspace(object):
         self.channels[cr] = chan
 
     def add_sr(self, sr):
+        self._has_sr = True
         chan = self.hf.Channel(sr)
         if self.blinded:
             self.pseudodata_regions[sr] = chan
         else:
+            # print 'unblind!'
             data_count = self._yields[sr]['data']
             chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
@@ -158,6 +162,8 @@ class Workspace(object):
             # --- add systematics ---
             syst_dict = self._systematics[region][self.signal_point]
             for syst, var in syst_dict.iteritems():
+                if var[0] > var[1]:
+                    print region, syst, self.signal_point, var
                 signal.AddOverallSys(syst, *var)
 
             chan.AddSample(signal)
@@ -182,6 +188,8 @@ class Workspace(object):
         # --- add systematics ---
         syst_dict = self._systematics[region].get(bg, {})
         for syst, var in syst_dict.iteritems():
+            if var[0] > var[1]:
+                print region, syst, bg, var
             background.AddOverallSys(syst, *var)
 
         chan.AddSample(background)
@@ -207,7 +215,7 @@ class Workspace(object):
             self.meas.AddChannel(channel)
 
         # don't want to save the output files in the current dir
-        bgfit = 'pseudodata' if self.pseudodata_regions else 'background'
+        bgfit = 'pseudodata' if self._has_sr else 'background'
         self.meas.SetOutputFilePrefix(
             join(results_dir, self.signal_point or bgfit))
 

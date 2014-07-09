@@ -27,6 +27,7 @@ def run():
         '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument('--unblind', action='store_true')
     hf_action = parser.add_mutually_exclusive_group()
     hf_action.add_argument('-f', '--after-fit', action='store_true',
                            help=_after_fit)
@@ -52,7 +53,8 @@ def _multispaces(config):
     run_histfitter = config.after_fit or config.upper_limit
     misc_config = dict(
         backgrounds=bgs, out_dir=config.out_dir,
-        debug=config.debug, do_hf=run_histfitter, verbose=config.verbose)
+        debug=config.debug, do_hf=run_histfitter, verbose=config.verbose,
+        unblind=config.unblind)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -84,6 +86,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
         yields, misc_config['backgrounds'],
         combine_tagging_syst=fit_config.get('combine_tagging', False),
         fixed_backgrounds=fit_config['fixed_backgrounds'])
+    if misc_config['unblind']:
+        fit.blinded = False
     if misc_config['debug']:
         fit.debug = True
     if signal_point:

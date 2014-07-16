@@ -52,7 +52,7 @@ def _multispaces(config):
 
     run_histfitter = config.after_fit or config.upper_limit
     misc_config = dict(
-        backgrounds=bgs, out_dir=config.out_dir,
+        out_dir=config.out_dir,
         debug=config.debug, do_hf=run_histfitter, verbose=config.verbose,
         unblind=config.unblind)
 
@@ -82,10 +82,7 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     # have been filed. For now just using output filters.
     ROOT.gDirectory.GetList().Delete() # maybe fix?
 
-    fit = Workspace(
-        yields, misc_config['backgrounds'],
-        combine_tagging_syst=fit_config.get('combine_tagging', False),
-        fixed_backgrounds=fit_config['fixed_backgrounds'])
+    fit = Workspace(yields, fit_config)
     if misc_config['unblind']:
         fit.blinded = False
     if misc_config['debug']:

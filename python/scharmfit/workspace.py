@@ -30,10 +30,10 @@ class Workspace(object):
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, yields, backgrounds, fixed_backgrounds,
-                 combine_tagging_syst=True):
-        _check_subset(fixed_backgrounds, backgrounds)
-        self.fixed_backgrounds = fixed_backgrounds
+    def __init__(self, yields, config):
+        _, backgrounds = get_signal_points_and_backgrounds(yields)
+        _check_subset(config['fixed_backgrounds'], backgrounds)
+        self.fixed_backgrounds = config['fixed_backgrounds']
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
@@ -48,7 +48,7 @@ class Workspace(object):
             self._yields, yield_systematics)
         # we can merge the tagging systematic as recommended by the
         # b-tagging group
-        if combine_tagging_syst:
+        if config.get('combine_tagging_syst', True):
             self._systematics = _combine_systematics(self._systematics)
         _update_with_relative_systematics(
             self._systematics, yields.get(self.relative_systematics_key,{}))

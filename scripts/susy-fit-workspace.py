@@ -46,6 +46,9 @@ def _multispaces(config):
 
     # get / generate the fit configuration
     fit_configs = _get_config(config.fit_config, yields)
+    if not fit_configs:
+        print 'wrote {}, quitting...'.format(config.fit_config)
+        return
 
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
@@ -113,28 +116,33 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 # _______________________________________________________________________
 # helpers
 
+_nom_yields_key = 'nominal_yields'
+_syst_yields_key = 'yield_systematics'
 def _get_config(cfg_name, yields_dict):
     """gets / generates the fit config file"""
 
+    all_syst = _all_syst_from_yields(yields_dict)
     if isfile(cfg_name):
         with open(cfg_name) as yml:
             fit_configs = yaml.load(yml)
     else:
         def_config = {
             'control_regions': [
-                'cr_w', 'cr_t', 'cr_z'
+                x for x in yields_dict[_nom_yields_key] if x.startswith('cr_')
                 ],
-            'signal_region': 'signal',
+            'signal_region': 'signal_mct150',
             'combine_tagging': False,
             'fixed_backgrounds': ['other'],
+            'systematics': list(all_syst),
             }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:
             yml.write(yaml.dump(fit_configs))
+        return None
 
     # check to make sure all the requested regions actually exist
     ichain = chain.from_iterable
-    y_regs = set(ichain(sys.keys() for sys in yields_dict.itervalues()))
+    y_regs = set(yields_dict[_nom_yields_key].iterkeys())
     f_regs = set(
         ichain(c['control_regions'] for c in fit_configs.itervalues()))
     f_regs |= set(c['signal_region'] for c in fit_configs.itervalues())
@@ -142,8 +150,28 @@ def _get_config(cfg_name, yields_dict):
     if missing_regions:
         raise ValueError('missing regions: {}'.format(
                 ', '.join(missing_regions)))
+    for config in fit_configs.values():
+        _check_for_systs(yields_dict, config['systematics'])
 
     return fit_configs
+
+def _all_syst_from_yields(yields_dict):
+    """return the systematic variations, with up / down stripped off"""
+    all_syst = set(yields_dict[_syst_yields_key].iterkeys())
+    def _strip(syst):
+        for suffix in ['up','down']:
+            if syst.endswith(suffix):
+                return syst[:-len(suffix)]
+        return syst
+    return set(_strip(x) for x in all_syst)
+
+def _check_for_systs(yields_dict, systematics):
+    yld_dict = set(yields_dict[_syst_yields_key].iterkeys())
+    for syst in systematics:
+        if syst not in yld_dict:
+            up, down = syst + 'up', syst + 'down'
+            if up not in yld_dict or down not in yld_dict:
+                raise ValueError('missing syst: {}'.format(syst))
 
 if __name__ == '__main__':
     run()

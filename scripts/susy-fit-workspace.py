@@ -26,6 +26,7 @@ def run():
     parser.add_argument(
         '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
+    parser.add_argument('-b', '--background-only', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
     parser.add_argument('--unblind', action='store_true')
     hf_action = parser.add_mutually_exclusive_group()
@@ -52,6 +53,8 @@ def _multispaces(config):
 
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
+    if config.background_only:
+        signal_points = []
 
     run_histfitter = config.after_fit or config.upper_limit
     misc_config = dict(
@@ -137,7 +140,7 @@ def _get_config(cfg_name, yields_dict):
             }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:
-            yml.write(yaml.dump(fit_configs))
+            yml.write(yaml.dump(fit_configs, width=70))
         return None
 
     # check to make sure all the requested regions actually exist

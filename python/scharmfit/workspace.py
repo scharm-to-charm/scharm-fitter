@@ -39,19 +39,9 @@ class Workspace(object):
             self.hf = ROOT.RooStats.HistFactory
 
         self._yields = yields[self.baseline_yields_key]
-        # HistFactory actually wants all the systematics as relative
-        # systematics, we convert them here.  the relative systematics
-        # are keyed as
-        # {region: {process:{systematic: (down, up), ...}, ... }, ...}
-        yield_systematics = yields[self.yield_systematics_key]
-        self._systematics = _get_relative_from_abs_systematics(
-            self._yields, yield_systematics)
-        # we can merge the tagging systematic as recommended by the
-        # b-tagging group
-        if config.get('combine_tagging_syst', True):
-            self._systematics = _combine_systematics(self._systematics)
-        _update_with_relative_systematics(
-            self._systematics, yields.get(self.relative_systematics_key,{}))
+
+        self._load_systematics(yields, config)
+
         self.backgrounds = backgrounds
 
         # create / configure the measurement
@@ -76,6 +66,29 @@ class Workspace(object):
         self.channels = {}
 
         self.debug = False
+
+    def _load_systematics(self, yields, config):
+        """
+        called by initialize routine, handle all the organization
+        and storing of the systematic variations
+        """
+        # filter out unwanted systematics
+        yield_systematics = _filter_systematics(
+            yields[self.yield_systematics_key], config['systematics'])
+        base_yields = yields[self.baseline_yields_key]
+
+        # HistFactory actually wants all the systematics as relative
+        # systematics, we convert them here.  the relative systematics
+        # are keyed as
+        # {region: {process:{systematic: (down, up), ...}, ... }, ...}
+        self._systematics = _get_relative_from_abs_systematics(
+            base_yields, yield_systematics)
+        # we can merge the tagging systematic as recommended by the
+        # b-tagging group
+        if config.get('combine_tagging_syst', False):
+            self._systematics = _combine_systematics(self._systematics)
+        _update_with_relative_systematics(
+            self._systematics, yields.get(self.relative_systematics_key,{}))
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
@@ -378,6 +391,24 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
 
 _asym_suffix_up = 'up'
 _asym_suffix_down = 'down'
+
+def _filter_systematics(original, allowed):
+    """
+    Slim down 'original' dict of systematics by only allowing `allowed` and
+    up / down variations of `allowed`.
+    """
+    filtered = {}
+    ud_suffix = [_asym_suffix_down, _asym_suffix_up]
+    for systn in allowed:
+        if systn in original:
+            filtered[systn] = original[systn]
+        elif all(systn + sfx in original for sfx in ud_suffix):
+            for sfx in ud_suffix:
+                filtered[systn + sfx] = original[systn + sfx]
+        else:
+            raise ValueError('no systematic {}'.format(systn))
+    return filtered
+
 def _split_systematics(systematics):
     """
     Split into symmetric and asymmetric vairations.

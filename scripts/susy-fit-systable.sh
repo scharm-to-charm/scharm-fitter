@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 OUTDIR=bg_fit
-REGIONS=signal_mct150,cr_w_mct150,cr_z,cr_t
+REGIONS=signal_mct150,cr_w_mct150_l1pt50,cr_z,cr_t
 SAMPLES=Wjets,Zjets,top,other
 
 usage() {
@@ -16,7 +16,8 @@ Writes to $OUTDIR by default.
 
 Options:
  -t make test presentation
-
+ -o <out_dir> set output dir
+ -r reg1,reg2,etc set regions
 EOF
 }
 
@@ -27,6 +28,7 @@ do
 	-h) doc; exit 1;;
 	-o) shift; OUTDIR=$1; shift;;
 	-t) MKTEST=1; shift;;
+	-r) shift; REGIONS=$1; shift;;
 	*)
 	    if [[ -n $input ]]
 		then

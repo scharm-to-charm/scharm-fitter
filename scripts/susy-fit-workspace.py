@@ -86,7 +86,7 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     import ROOT
     # TODO: this leaks memory like crazy, not sure why but bug reports
     # have been filed. For now just using output filters.
-    ROOT.gDirectory.GetList().Delete() # maybe fix?
+    # ROOT.gDirectory.GetList().Delete() # maybe fix?
 
     fit = Workspace(yields, fit_config)
     if misc_config['unblind']:

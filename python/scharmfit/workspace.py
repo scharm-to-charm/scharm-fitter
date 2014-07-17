@@ -157,14 +157,14 @@ class Workspace(object):
             sig_yield = yields[region][self.signal_point]
             signal_count = sig_yield[self._nkey]
             # signal.SetValue(signal_count)
-            _set_value(signal, signal_count)
-            sig_stat_error = sig_yield[self._errkey]
-            signal.GetHisto().SetBinError(1,sig_stat_error)
+            _set_value(signal, signal_count, sig_yield[self._errkey])
+            # sig_stat_error = sig_yield[self._errkey]
+            # signal.GetHisto().SetBinError(1,sig_stat_error)
             # TODO: see if we need to call ActivateStatError(). For
             # now it's commented out because it makes the code
             # crash...
 
-            # signal.ActivateStatError()
+            signal.ActivateStatError()
 
             # this does something with lumi error... not sure what
             signal.SetNormalizeByTheory(True)
@@ -186,16 +186,16 @@ class Workspace(object):
         self.region_sums[region] += bg_n
         sname = '_'.join([region,bg])
         background = self.hf.Sample(sname)
-        _set_value(background, bg_n)
+        _set_value(background, bg_n, base_vals[self._errkey])
         # background.SetValue(bg_n)
-        stat_error = base_vals[self._errkey]
-        background.GetHisto().SetBinError(1,stat_error)
+        # stat_error = base_vals[self._errkey]
+        # background.GetHisto().SetBinError(1,stat_error)
         if not bg in self.fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
         background.SetNormalizeByTheory(False)
         # SEE ABOVE COMMENT on ActivateStatError
-        # background.ActivateStatError()
+        background.ActivateStatError()
         # --- add systematics ---
         syst_dict = self._systematics[region].get(bg, {})
         for syst, var in syst_dict.iteritems():
@@ -509,7 +509,7 @@ def _check_subset(subset, superset):
         if not xx in superset:
             raise ValueError("{} not in {}".format(xx, ', '.join(superset)))
 
-def _set_value(sample, value):
+def _set_value(sample, value, err):
     """
     Workaround for the crashing Sample.SetValue method.
 
@@ -519,10 +519,12 @@ def _set_value(sample, value):
     Thanks ATLAS, thanks for training a generation of physicists on
     this shit code, what a fucking waste of life...
     """
-    from ROOT import TH1D
+    from ROOT import TH1D, SetOwnership
     sname = sample.GetName()
     hist = TH1D(sname + '_hist', '', 1, 0, 1)
     hist.SetBinContent(1, value)
+    hist.SetBinError(1, err)
+    # SetOwnership(hist, False)
     sample.SetHisto(hist)
 
 def get_signal_points_and_backgrounds(all_yields):

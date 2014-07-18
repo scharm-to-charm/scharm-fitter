@@ -51,6 +51,7 @@ Input files should be formatted as follows:
 ```yaml
 nominal_yields:
   REGION_NAME:
+    data: [DATA_YIELD]
     BACKGROUND: [YIELD, STATISTICAL_UNCERTAINTY]
     ....
     scharm-SCHARM_MASS-LSP_MASS: [YIELD, STATISTICAL_UNCERTAINTY]:
@@ -67,6 +68,7 @@ relative_systematics:
   SYSTEMATIC:
     REGION_NAME:
       BACKGROUND: [DOWN, UP]
+    REGION_NAME: [DOWN, UP]
   ....
 
 ```
@@ -86,13 +88,15 @@ treated in special ways:
    centered on the nominal value.
 
 Signal points must be of the form "`scharm-` scharm mass `-` lsp
-mass".  The masses can be arbitrary integers. The `BACKGROUND` names
-are arbitrary.
+mass".  The masses can be arbitrary integers. Data points should be
+entered as `data`, and the `BACKGROUND` names are arbitrary.
 
 Values given by `YIELD` and `STATISTICAL_UNCERTAINTY` should be
 absolute. Relative uncertainties are specified with `1.0` meaning "no
 variation", e.g. a variation that is expected to fluctuate by 20% in
-each direction would be `[0.8, 1.2]`.
+each direction would be `[0.8, 1.2]`. Specifying a systematic in the
+form `REGION_NAME: [DOWN, UP]` applies the systematic to all samples
+in the region.
 
 #### Fit Config File
 
@@ -104,6 +108,8 @@ CONFIG_NAME:
   control_regions: [REG1, REG2, ...]
   signal_region: SIG_REGION
   combine_tagging: TRUE_OR_FALSE
+  fixed_backgrounds: [BG1, BG2, ...]
+  systematics: [SYS1, SYS2, ...]
 ```
 
 This file will be created (although not necessarily with sensible

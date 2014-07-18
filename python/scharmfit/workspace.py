@@ -365,7 +365,7 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                 try:
                     varied_yield = systematic_yields[syst][region][process][0]
                 except KeyError as err:
-                    varied_yield = nom_yield # missing means no variation
+                    continue # missing means no variation
                 rel_syst_err = varied_yield / nom_yield - 1.0
                 rel_syst_err /= 2.0 # cut in half because it's symmetric
                 rel_syst_range = ( 1 - rel_syst_err, 1 + rel_syst_err)
@@ -381,10 +381,12 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                     try:
                         raw = systematic_yields[sys_name][region][process][0]
                     except KeyError as err:
-                        return 1.0 # missing means no variation
+                        return None # missing means no variation
                     return raw / nom_yield
-
-                rel_systs[region][process][syst] = (var(sdown), var(sup))
+                updown = (var(sdown), var(sup))
+                if updown == (None, None):
+                    continue
+                rel_systs[region][process][syst] = updown
 
     # NOTE: we'll probably have to hack in a lot more systematics here
     # by hand...

@@ -33,16 +33,17 @@ the `scripts` directory:
    will as well.
 
 Example inputs are in `example_data/`. If `scripts/` has been
-added to your `PATH`, the following command should produce some
+added to your `PATH`, the following command ~~should~~ *would*
+(if I got around update the example data) produce some
 workspaces:
 
 ```bash
 cd example_data
-susy-fit-workspace.py inputs.yml -c configuration.yml -s
+susy-fit-workspace.py inputs.yml -c configuration.yml -f
 ```
 
-Adding the `-s` flag will produce more workspaces, including the
-`_afterFit.root` and `_upperlimits.root` files.
+Adding the `-f` flag will produce the `_afterFit.root`, -l will
+produce `_upperlimits.root` files.
 
 ### Input / Output format
 
@@ -80,8 +81,8 @@ Some of the `SYSTEMATIC` categories under `yield_systematics` will be
 treated in special ways:
  - The b-tagging systematics (names starting with `b`, `c`, `u`, or
    `t` and ending with `up` or `down`, i.e. `bup`, `udown` etc...)
-   will be added in quadrature before fitting. (will probably add
-   warnings if all these backgrounds aren't found).
+   can be added in quadrature before fitting. (will print warnings
+   if all these backgrounds aren't found).
  - Other names that end in `up` or `down` will be paired to give an
    asymmetric uncertainty.
  - Any other (unpaired) systematics will be entered as a symmetric uncertainty
@@ -131,5 +132,3 @@ quadrature.
  - Workspace creation produces about 5 files, only one of which we
    seem to need. Right now I'm deleting the others, should make sure
    this is safe.
- - Figure out whether the `sample.ActivateStatError()` function is
-   needed in our case. If so, figure out how to keep it from crashing.

@@ -31,7 +31,7 @@ class Workspace(object):
     _nkey = 0                  # yield
     _errkey = 1                # stat error
     def __init__(self, yields, config):
-        _, backgrounds = get_signal_points_and_backgrounds(yields)
+        all_sp, backgrounds = get_signal_points_and_backgrounds(yields)
         _check_subset(config['fixed_backgrounds'], backgrounds)
         self.fixed_backgrounds = config['fixed_backgrounds']
         import ROOT
@@ -40,7 +40,7 @@ class Workspace(object):
 
         self._yields = yields[self.baseline_yields_key]
 
-        self._load_systematics(yields, config)
+        self._load_systematics(yields, config, all_sp + backgrounds)
 
         self.backgrounds = backgrounds
 
@@ -67,7 +67,7 @@ class Workspace(object):
 
         self.debug = False
 
-    def _load_systematics(self, yields, config):
+    def _load_systematics(self, yields, config, all_sim):
         """
         called by initialize routine, handle all the organization
         and storing of the systematic variations
@@ -87,8 +87,9 @@ class Workspace(object):
         # b-tagging group
         if config.get('combine_tagging_syst', False):
             self._systematics = _combine_systematics(self._systematics)
+        rel_systs = yields.get(self.relative_systematics_key, {})
         _update_with_relative_systematics(
-            self._systematics, yields.get(self.relative_systematics_key,{}))
+            self._systematics, rel_systs, all_sim)
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
@@ -473,23 +474,33 @@ def _combine_tagging_systematics(relative_systematics):
         out_rel[region] = reg_systs
     return out_rel
 
-def _update_with_relative_systematics(existing, rel_systs):
+def _update_with_relative_systematics(existing, rel_systs, all_proc):
     """
     Add relative systematics to the systematics we use. Throw an
     exception if we try to overwrite.
     """
     for sys_name, region_dict in rel_systs.iteritems():
         for region_name, process_dict in region_dict.iteritems():
-            if region_name not in existing:
-                existing[region_name] = {}
-            for process_name, downup in process_dict.iteritems():
-                if process_name not in existing[region_name]:
-                    existing[region_name][process_name] = {}
-                old_systs = existing[region_name][process_name]
-                if sys_name in old_systs:
-                    raise ValueError('tried to overwrite systematic')
-                old_systs[sys_name] = downup
-                existing[region_name][process_name] = old_systs
+            exist_region = existing.setdefault(region_name, {})
+            # we allow a list to be passed to the region directly
+            # in which case it's applied to all processes
+            try:
+                for process_name, downup in process_dict.iteritems():
+                    exist_process = exist_region.setdefault(process_name, {})
+                    if sys_name in exist_process:
+                        raise ValueError('tried to overwrite systematic')
+                    exist_process[sys_name] = downup
+                    existing[region_name][process_name] = old_systs
+            except AttributeError as err:
+                if "object has no attribute 'iteritems'" not in str(err):
+                    raise
+                if not len(process_dict) == 2:
+                    raise ValueError(
+                        '{} not an up / down pair'.format(process_dict))
+                for proc in all_proc:
+                    exist_proc = exist_region.setdefault(proc, {})
+                    exist_proc[sys_name] = process_dict
+
 
 # __________________________________________________________________________
 # helper functions

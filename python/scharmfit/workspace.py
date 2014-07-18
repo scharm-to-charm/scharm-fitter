@@ -98,7 +98,8 @@ class Workspace(object):
             self.pseudodata_regions[cr] = chan
         else:
             data_count = self._yields[cr]['data']
-            chan.SetData(data_count[self._nkey])
+            with OutputFilter():
+                chan.SetData(data_count[self._nkey])
         # ACHTUNG: not at all sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, cr)
@@ -112,7 +113,8 @@ class Workspace(object):
         else:
             # print 'unblind!'
             data_count = self._yields[sr]['data']
-            chan.SetData(data_count[self._nkey])
+            with OutputFilter():
+                chan.SetData(data_count[self._nkey])
         # ACHTUNG: again, not sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, sr)
@@ -158,12 +160,10 @@ class Workspace(object):
             signal_count = sig_yield[self._nkey]
             # signal.SetValue(signal_count)
             _set_value(signal, signal_count, sig_yield[self._errkey])
-            # sig_stat_error = sig_yield[self._errkey]
-            # signal.GetHisto().SetBinError(1,sig_stat_error)
+
             # TODO: see if we need to call ActivateStatError(). For
             # now it's commented out because it makes the code
             # crash...
-
             signal.ActivateStatError()
 
             # this does something with lumi error... not sure what
@@ -220,7 +220,8 @@ class Workspace(object):
             # add the pseudodata regions
             if chan_name in self.pseudodata_regions:
                 pseudo_count = self.region_sums[chan_name]
-                channel.SetData(pseudo_count)
+                with OutputFilter():
+                    channel.SetData(pseudo_count)
             self.meas.AddChannel(channel)
 
         # don't want to save the output files in the current dir
@@ -521,7 +522,8 @@ def _set_value(sample, value, err):
     """
     from ROOT import TH1D, SetOwnership
     sname = sample.GetName()
-    hist = TH1D(sname + '_hist', '', 1, 0, 1)
+    with OutputFilter():        # suppress memory leak complaint
+        hist = TH1D(sname + '_hist', '', 1, 0, 1)
     hist.SetBinContent(1, value)
     hist.SetBinError(1, err)
     # SetOwnership(hist, False)

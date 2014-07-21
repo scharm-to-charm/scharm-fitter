@@ -32,10 +32,8 @@ the `scripts` directory:
    with a bad pyroot install, but if it fails, everything else here
    will as well.
 
-Example inputs are in `example_data/`. If `scripts/` has been
-added to your `PATH`, the following command ~~should~~ *would*
-(if I got around update the example data) produce some
-workspaces:
+Example inputs are in `example_data/`. If `scripts/` has been added to
+your `PATH`, the following command should produce some workspaces:
 
 ```bash
 cd example_data
@@ -111,6 +109,8 @@ CONFIG_NAME:
   combine_tagging: TRUE_OR_FALSE
   fixed_backgrounds: [BG1, BG2, ...]
   systematics: [SYS1, SYS2, ...]
+CONFIG2_NAME:
+  ...
 ```
 
 This file will be created (although not necessarily with sensible

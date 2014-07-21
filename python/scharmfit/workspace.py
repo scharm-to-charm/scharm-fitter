@@ -323,9 +323,18 @@ class Workspace(object):
         Delete HistFactory byproducts that we don't need.
         At this point it's not clear what we do and don't need...
         """
-        good_tmp = join(results_dir, '*_combined_{meas}_model.root')
-        good_files = glob.glob(good_tmp.format(meas=self.meas_name))
-        for trash in glob.glob(join(results_dir,'*')):
+        pfx = self._get_ws_prefix()
+
+        # we want to keep these
+        good_tmp = [
+            '{pfx}_combined_{meas}_model.root',
+            '{pfx}_combined_{meas}_model_afterFit.root']
+        fmt = dict(pfx=pfx, meas=self.meas_name)
+        good_files = {join(results_dir, x.format(**fmt)) for x in good_tmp}
+
+        # remove everything else with this workspace's prefix
+        bad = glob.glob(join(results_dir,'{}_*'.format(pfx)))
+        for trash in bad:
             if not trash in good_files:
                 os.remove(trash)
 

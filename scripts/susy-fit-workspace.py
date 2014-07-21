@@ -107,8 +107,10 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 
     fit.save_workspace(out_dir)
 
+    # TODO: figure out if this is removing anything we need
+    fit.cleanup_results_dir(out_dir)
+
     if not misc_config['do_hf']:
-        fit.cleanup_results_dir(out_dir)
         return
 
     # here be black magic

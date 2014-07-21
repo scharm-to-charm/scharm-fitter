@@ -4,3 +4,10 @@ default:
   fixed_backgrounds: [other]
   signal_region: signal
   systematics: [jer, c, b, u, t, trigger, somesyst]
+
+combined:
+  combine_tagging: true
+  control_regions: [cr_w, cr_t, cr_z]
+  fixed_backgrounds: [other]
+  signal_region: signal
+  systematics: [jer, c, b, u, t, trigger, somesyst]

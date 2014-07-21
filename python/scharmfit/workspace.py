@@ -239,6 +239,16 @@ class Workspace(object):
     # _________________________________________________________________
     # save the workspace
 
+    def _get_ws_prefix(self):
+        """
+        The workspace is named according to the signal point. If there's
+        no signal point, it's called either 'pseudodata' (if there's
+        a signal region specified) or 'background' (only control regions)
+        """
+        if self.signal_point:
+            return self.signal_point
+        return 'pseudodata' if self._has_sr else 'background'
+
     def save_workspace(self, results_dir, verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
@@ -259,14 +269,8 @@ class Workspace(object):
 
         # don't want to save the output files in the current dir, set
         # the output prefix here.
-        if not self.signal_point:
-            # we can set a signal region without a signal point, in
-            # which case it's the 'pseudodata-only' fit, which includes
-            # the signal region.
-            ft_name = 'pseudodata' if self._has_sr else 'background'
-        else:
-            ft_name = self.signal_point
-        self.meas.SetOutputFilePrefix(join(results_dir, ft_name))
+        self.meas.SetOutputFilePrefix(
+            join(results_dir, self._get_ws_prefix()))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
@@ -325,19 +329,19 @@ class Workspace(object):
             if not trash in good_files:
                 os.remove(trash)
 
-    def do_histfitter_magic(self, input_workspace, verbose=False):
+    def do_histfitter_magic(self, ws_dir, verbose=False):
         """
         Here we break into histfitter voodoo. The functions here are pulled
         out of the HistFitter.py script. The input workspace is the one
         produced by the `save_workspace` function above.
         """
-        # NOTE: should make this function take the same argument
-        # as the `save_workspace` one, having to manually append all
-        # the magic file name strings.
-
         from scharmfit import utils
         utils.load_susyfit()
         from ROOT import ConfigMgr, Util
+
+        ws_name = '{}_combined_{meas}_model.root'.format(
+            self._get_ws_prefix(), meas=self.meas_name)
+        ws_path = join(ws_dir, ws_name)
 
         # The histfitter authors somehow thought that creating a
         # singleton configuration manager was good design. Maybe it is
@@ -351,21 +355,25 @@ class Workspace(object):
         # such a hack... but this is to check if the fit config is unique
         fc_number = 0
         with OutputFilter():
-            # name fig configs '1', '2', '3', etc...
+            # name fig configs '0', '1', '2', '3', etc...
             while mgr.getFitConfig(str(fc_number)):
                 fc_number += 1
         fc = mgr.addFitConfig(str(fc_number))
 
         # had to dig pretty deep into the HistFitter code to find this
         # stuff, but this seems to be how it sets things up.
-        fc.m_inputWorkspaceFileName = input_workspace
-        fc.m_signalSampleName = basename(input_workspace).split('.')[0]
+        fc.m_inputWorkspaceFileName = ws_path
+        # HistFitter name convention seems to be that the background only fit
+        # is called "Bkg" or "" (empty string).
+        fc.m_signalSampleName = self.signal_point or ''
 
+        # HistFitter doesn't seem to distinguish between background
+        # and signal channels. The only possible difference is a
+        # commented out line that sets 'lumiConst' to true if there
+        # are no signal channels. May be worth looking into...
         for chan in self.channels:
-            if chan == 'signal':
-                continue
             fc.m_bkgConstrainChannels.push_back(chan)
-        fc.m_signalChannels.push_back('signal')
+            # fc.m_signalChannels.push_back(chan)
 
         accept_strings = {'ERROR:','WARNING:'} if not verbose else {''}
         # this snapshot error appears to be a hackish check, can ignore

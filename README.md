@@ -42,7 +42,7 @@ cd example_data
 susy-fit-workspace.py inputs.yml -c configuration.yml -f
 ```
 
-Adding the `-f` flag will produce the `_afterFit.root`, -l will
+Adding the `-f` flag will produce the `_afterFit.root`, `-l` will
 produce `_upperlimits.root` files.
 
 ### Input / Output format

@@ -39,7 +39,7 @@ def load_susyfit(use_histfitter_version=False):
     import ROOT
     with OutputFilter(accept_re='ERROR'):
         ROOT.gSystem.Load('{}/libSusyFitter.so'.format(lib_path))
-        
+
 
 class OutputFilter(object):
     """

@@ -112,6 +112,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
         return
 
     # here be black magic
+    # TODO: move all this name formatting into the `do_histfitter_magic`
+    # function, we shouldn't have to do it out here.
     ws_name = join(out_dir, '{}_combined_{meas}_model.root').format(
         signal_point or 'background', meas=fit.meas_name)
     fit.do_histfitter_magic(ws_name, verbose=misc_config['verbose'])

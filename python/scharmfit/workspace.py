@@ -8,6 +8,27 @@ from collections import defaultdict, Counter
 import warnings
 from itertools import chain, product
 
+# GENERAL CONFUSING THINGS:
+#
+#  - The input files are generally structured as
+#    {variation: {region: {sample: ... }, ... }, ... }
+#    When creating the workspace it's more convenient to structure this as
+#    {region: {sample: {variation: (down, up) }, ... }, ... }
+#    Some functions called in the constructor handle this reordering.
+#
+#  - Blinding and 'pseudodata': for blinded exclusion fits, the signal
+#    region is filled with the sum of the SM backgrounds ('pseudodata').
+#    Since we don't know what this sum is before adding all the backgrounds,
+#    the pseudodata regions are added to the Measurement _after_ all the
+#    other regions, when the workspace is saved.
+#
+#  - `Log` files: I generally find huge amounts of output distracting, so
+#    I've created a contex manager `OutputFilter` that does some magic with
+#    the output streams to silence noisy routines. You can comment these
+#    out to get the output, or just insert `accept_strings={''}` into the
+#    `OutputFilter` constructor.
+
+
 # define some keys used in the yaml input file (to avoid hardcoding
 # them in multiple places)
 _baseline_yields_key = 'nominal_yields'
@@ -47,12 +68,17 @@ class Workspace(object):
         # create / configure the measurement
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
         self.meas.SetLumi(1.0)
-        lumiError = 0.039       # NOTE: check this (or make configurable)
+
+        # NOTE: see this twiki for lumi ref
+        # https://twiki.cern.ch/twiki/bin/viewauth/Atlas/LuminosityForPhysics
+        lumiError = 0.028
         self.meas.SetLumiRelErr(lumiError)
         self.meas.SetExportOnly(True)
 
         self.signal_point = None
-        # for blinding / pseudodata
+        # for blinding / pseudodata: `pseudodata` just means the sume of SM
+        # backgrounds are used. If `blinded` is set to true we use this in
+        # the control region
         self.region_sums = Counter()
         self.do_pseudodata = False
         self.blinded = True
@@ -134,7 +160,6 @@ class Workspace(object):
     def _add_mc_to_channel(self, chan, region):
         """
         Adds the signal mc and the backgrounds to this channel.
-        Will throw exceptions if the signal isn't set.
         """
         self._add_signal_to_channel(chan, region)
 
@@ -147,8 +172,8 @@ class Workspace(object):
             # get yield / stat error in SR
             yields = self._yields
 
-            # signal points don't have to be saved in the yaml file
-            # if they are missing it means 0.0 (both yield and stat error)
+            # signal points don't have to be saved in the yaml file,
+            # the fit works fine without them.
             if not self.signal_point in yields[region]:
                 return
 
@@ -157,17 +182,21 @@ class Workspace(object):
             signal = self.hf.Sample(sname)
 
             # The signal yield is a list with two entries (yield, stat_error)
+            # I've kept the _nkey, and _errkey variables so it's easy to
+            # change over to a dictionary. For now they are list indices.
             sig_yield = yields[region][self.signal_point]
             signal_count = sig_yield[self._nkey]
-            # signal.SetValue(signal_count)
             _set_value(signal, signal_count, sig_yield[self._errkey])
 
-            # TODO: see if we need to call ActivateStatError(). For
-            # now it's commented out because it makes the code
-            # crash...
+            # ACHTUNG: I _think_ this has to be called to make sure
+            # the statistical error is used in the fit. I assume we should
+            # always use it, but the documentation basically says that
+            # this "activates" the statistical error... great!
             signal.ActivateStatError()
 
-            # this does something with lumi error... not sure what
+            # this does something with lumi error... I think it means
+            # the lumi uncertainty isn't used for this sample (i.e. it's not
+            # controled for by a control region)
             signal.SetNormalizeByTheory(True)
 
             # set a floating normalization factor
@@ -188,12 +217,11 @@ class Workspace(object):
         sname = '_'.join([region,bg])
         background = self.hf.Sample(sname)
         _set_value(background, bg_n, base_vals[self._errkey])
-        # background.SetValue(bg_n)
-        # stat_error = base_vals[self._errkey]
-        # background.GetHisto().SetBinError(1,stat_error)
+
         if not bg in self.fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
 
+        # SEE ABOVE COMMENT on SetNormalizeByTheory
         background.SetNormalizeByTheory(False)
         # SEE ABOVE COMMENT on ActivateStatError
         background.ActivateStatError()
@@ -225,10 +253,16 @@ class Workspace(object):
                     channel.SetData(pseudo_count)
             self.meas.AddChannel(channel)
 
-        # don't want to save the output files in the current dir
-        bgfit = 'pseudodata' if self._has_sr else 'background'
-        self.meas.SetOutputFilePrefix(
-            join(results_dir, self.signal_point or bgfit))
+        # don't want to save the output files in the current dir, set
+        # the output prefix here.
+        if not self.signal_point:
+            # we can set a signal region without a signal point, in
+            # which case it's the 'pseudodata-only' fit, which includes
+            # the signal region.
+            ft_name = 'pseudodata' if self._has_sr else 'background'
+        else:
+            ft_name = self.signal_point
+        self.meas.SetOutputFilePrefix(join(results_dir, ft_name))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
@@ -290,21 +324,36 @@ class Workspace(object):
     def do_histfitter_magic(self, input_workspace, verbose=False):
         """
         Here we break into histfitter voodoo. The functions here are pulled
-        out of the HistFitter.py script.
+        out of the HistFitter.py script. The input workspace is the one
+        produced by the `save_workspace` function above.
         """
+        # NOTE: should make this function take the same argument
+        # as the `save_workspace` one, having to manually append all
+        # the magic file name strings.
+
         from scharmfit import utils
         utils.load_susyfit()
         from ROOT import ConfigMgr, Util
+
+        # The histfitter authors somehow thought that creating a
+        # singleton configuration manager was good design. Maybe it is
+        # when you're wrapping ROOT code (with all its global variable
+        # glory). In any case, most of the hacking below is to work
+        # around this.
         mgr = ConfigMgr.getInstance()
         mgr.initialize()
-        mgr.setNToys(1)
+        mgr.setNToys(1)         # make configurable?
 
-        fc_number = 0
         # such a hack... but this is to check if the fit config is unique
+        fc_number = 0
         with OutputFilter():
+            # name fig configs '1', '2', '3', etc...
             while mgr.getFitConfig(str(fc_number)):
                 fc_number += 1
         fc = mgr.addFitConfig(str(fc_number))
+
+        # had to dig pretty deep into the HistFitter code to find this
+        # stuff, but this seems to be how it sets things up.
         fc.m_inputWorkspaceFileName = input_workspace
         fc.m_signalSampleName = basename(input_workspace).split('.')[0]
 
@@ -530,16 +579,14 @@ def _set_value(sample, value, err):
     Probably leaks memory, I don't care any more, because ROOT is designed
     to leak memory. It's designed to embody every shit programming
     paradigm, and invent a few more, yet we still use it.
-    Thanks ATLAS, thanks for training a generation of physicists on
-    this shit code, what a fucking waste of life...
+    $@! FURTHER EXPLETIVES REMOVED BY AUTHOR !@$
     """
-    from ROOT import TH1D, SetOwnership
+    from ROOT import TH1D
     sname = sample.GetName()
     with OutputFilter():        # suppress memory leak complaint
         hist = TH1D(sname + '_hist', '', 1, 0, 1)
     hist.SetBinContent(1, value)
     hist.SetBinError(1, err)
-    # SetOwnership(hist, False)
     sample.SetHisto(hist)
 
 def get_signal_points_and_backgrounds(all_yields):

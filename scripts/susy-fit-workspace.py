@@ -155,8 +155,6 @@ def _get_config(cfg_name, yields_dict):
     if missing_regions:
         raise ValueError('missing regions: {}'.format(
                 ', '.join(missing_regions)))
-    for config in fit_configs.values():
-        _check_for_systs(yields_dict, config['systematics'])
 
     return fit_configs
 
@@ -169,14 +167,6 @@ def _all_syst_from_yields(yields_dict):
                 return syst[:-len(suffix)]
         return syst
     return set(_strip(x) for x in all_syst)
-
-def _check_for_systs(yields_dict, systematics):
-    yld_dict = set(yields_dict[_syst_yields_key].iterkeys())
-    for syst in systematics:
-        if syst not in yld_dict:
-            up, down = syst + 'up', syst + 'down'
-            if up not in yld_dict or down not in yld_dict:
-                raise ValueError('missing syst: {}'.format(syst))
 
 if __name__ == '__main__':
     run()

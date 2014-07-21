@@ -93,14 +93,17 @@ class Workspace(object):
 
         self.debug = False
 
-    def _load_systematics(self, yields, config, all_sim):
+    def _load_systematics(self, yields, config, all_proc):
         """
         called by initialize routine, handle all the organization
         and storing of the systematic variations
         """
-        # filter out unwanted systematics
-        yield_systematics = _filter_systematics(
-            yields[self.yield_systematics_key], config['systematics'])
+        # filter out unwanted systematics, anything missing from the
+        # yields is assumed to be entered as a relative systematic further
+        # down.
+        requested_syst = config['systematics']
+        yield_systematics, missing_syst = _filter_systematics(
+            yields[self.yield_systematics_key], requested_syst)
         base_yields = yields[self.baseline_yields_key]
 
         # HistFactory actually wants all the systematics as relative
@@ -113,9 +116,10 @@ class Workspace(object):
         # b-tagging group
         if config.get('combine_tagging_syst', False):
             self._systematics = _combine_systematics(self._systematics)
-        rel_systs = yields.get(self.relative_systematics_key, {})
+        rel_systs = _filter_rel_systematics(
+            yields.get(self.relative_systematics_key, {}), missing_syst)
         _update_with_relative_systematics(
-            self._systematics, rel_systs, all_sim)
+            self._systematics, rel_systs, all_proc)
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
@@ -445,21 +449,37 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
 _asym_suffix_up = 'up'
 _asym_suffix_down = 'down'
 
-def _filter_systematics(original, allowed):
+def _filter_systematics(original, requested):
     """
-    Slim down 'original' dict of systematics by only allowing `allowed` and
-    up / down variations of `allowed`.
+    Slim down 'original' dict of systematics by only allowing
+    `requested` and up / down variations of `requested`. Return a
+    slimed selection, along with a list of the systematics that
+    weren't found.
     """
     filtered = {}
+    missing = []
     ud_suffix = [_asym_suffix_down, _asym_suffix_up]
-    for systn in allowed:
+    for systn in requested:
         if systn in original:
             filtered[systn] = original[systn]
         elif all(systn + sfx in original for sfx in ud_suffix):
             for sfx in ud_suffix:
                 filtered[systn + sfx] = original[systn + sfx]
         else:
-            raise ValueError('no systematic {}'.format(systn))
+            missing.append(systn)
+    return filtered, missing
+
+_missing_syst_err = "no systematic '{}' found, check your configuration."
+def _filter_rel_systematics(original, requested):
+    """
+    Filter `original`, if all `requested` aren't found, throw exception.
+    """
+    filtered = {}
+    for systn in requested:
+        if systn in original:
+            filtered[systn] = original[systn]
+        else:
+            raise ValueError(_missing_syst_err.format(systn))
     return filtered
 
 def _split_systematics(systematics):
@@ -481,6 +501,37 @@ def _split_systematics(systematics):
         asym_variations.add(sys + _asym_suffix_up)
     sym_systematics = set(systematics) - asym_variations
     return sym_systematics, asym
+
+def _update_with_relative_systematics(existing, rel_systs, all_proc):
+    """
+    Add relative systematics to the systematics we use. Throw an
+    exception if we try to overwrite.
+    """
+    for sys_name, region_dict in rel_systs.iteritems():
+        for region_name, process_dict in region_dict.iteritems():
+            exist_region = existing.setdefault(region_name, {})
+            # we allow a list to be passed to the region directly
+            # in which case it's applied to all processes
+            try:
+                for process_name, downup in process_dict.iteritems():
+                    exist_process = exist_region.setdefault(process_name, {})
+                    if sys_name in exist_process:
+                        raise ValueError('tried to overwrite systematic')
+                    exist_process[sys_name] = downup
+                    existing[region_name][process_name] = old_systs
+            except AttributeError as err:
+                if "object has no attribute 'iteritems'" not in str(err):
+                    raise
+                if not len(process_dict) == 2:
+                    raise ValueError(
+                        '{} not an up / down pair'.format(process_dict))
+                for proc in all_proc:
+                    exist_proc = exist_region.setdefault(proc, {})
+                    exist_proc[sys_name] = process_dict
+
+
+# _________________________________________________________________________
+# systematic combination (add b-tagging systematics in quadrature)
 
 def _combine_systematics(relative_systematics):
     """do all the ugly combination work here"""
@@ -524,33 +575,6 @@ def _combine_tagging_systematics(relative_systematics):
                     reg_systs[process][sys] = downup
         out_rel[region] = reg_systs
     return out_rel
-
-def _update_with_relative_systematics(existing, rel_systs, all_proc):
-    """
-    Add relative systematics to the systematics we use. Throw an
-    exception if we try to overwrite.
-    """
-    for sys_name, region_dict in rel_systs.iteritems():
-        for region_name, process_dict in region_dict.iteritems():
-            exist_region = existing.setdefault(region_name, {})
-            # we allow a list to be passed to the region directly
-            # in which case it's applied to all processes
-            try:
-                for process_name, downup in process_dict.iteritems():
-                    exist_process = exist_region.setdefault(process_name, {})
-                    if sys_name in exist_process:
-                        raise ValueError('tried to overwrite systematic')
-                    exist_process[sys_name] = downup
-                    existing[region_name][process_name] = old_systs
-            except AttributeError as err:
-                if "object has no attribute 'iteritems'" not in str(err):
-                    raise
-                if not len(process_dict) == 2:
-                    raise ValueError(
-                        '{} not an up / down pair'.format(process_dict))
-                for proc in all_proc:
-                    exist_proc = exist_region.setdefault(proc, {})
-                    exist_proc[sys_name] = process_dict
 
 
 # __________________________________________________________________________

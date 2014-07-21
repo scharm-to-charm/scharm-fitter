@@ -1,8 +1,6 @@
-combined_tagging:
-  control_regions: [cr_w, cr_t, cr_z]
-  signal_region: signal
-  combine_tagging: true
-free_tagging:
-  control_regions: [cr_w, cr_t, cr_z]
-  signal_region: signal
+default:
   combine_tagging: false
+  control_regions: [cr_w, cr_t, cr_z]
+  fixed_backgrounds: [other]
+  signal_region: signal
+  systematics: [jer, c, b, u, t, trigger, somesyst]

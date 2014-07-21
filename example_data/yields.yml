@@ -1,3 +1,5 @@
+# this should be all that is needed for the 'nominal' fit, regions,
+# yields, and statistical errors.
 nominal_yields:
   cr_t:
     Wjets: [0.02603673701515047, 0.019037205366049876]
@@ -28,6 +30,21 @@ nominal_yields:
     other: [0.4806600686116818, 0.3174743817220912]
     scharm-400-200: [22.72244320066448, 0.950272992780544]
     top: [7.0588647454386955, 0.6721311674604289]
+
+# 'relative' systematics are either theory or other 'by-hand'
+# systematic variations that aren't determined by running the full
+# analysis.
+relative_systematics:
+  trigger:
+    signal: [0.99, 1.01]
+  somesyst:
+    cr_w: [0.80, 1.3]
+    cr_z: [0.95, 1.1]
+
+# 'yield' systematics are derived by runnning the analysis with some
+# rescaling applied. These _could_ all be reformatted as relative
+# systematics and entered above (or the above could be entered as
+# yields below), the two entry methods exist as a convenience.
 yield_systematics:
   bdown:
     cr_t:

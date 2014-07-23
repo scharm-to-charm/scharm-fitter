@@ -274,48 +274,32 @@ class Workspace(object):
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
 
-        # NOTE: the lines immediately below could be cleaner than the
-        # hack further down, but the first solution segfaults for
-        # mysterious reasons. Assuming we don't _really_ care how the
-        # fit works, we should just use the hack further down.  (if we
-        # want to know what we're doing we shouldn't be using RooFit
-        # in the first place...)
-
-        # POSSIBLY CLEANER SOLUTION
-        # from ROOT import TFile
-        # h2ws = self.hf.HistoToWorkspaceFactoryFast(self.meas)
-        # ws = h2ws.MakeCombinedModel(self.meas)
-        # # both the below methods segfault...
-        # # method 1
-        # ws.writeToFile(join(results_dir, 'combined.root'), True)
-        # # method 2
-        # out = TFile(join(results_dir, 'combined.root'), 'recreate')
-        # ws.Write()
-        # out.close()
-
-        # HACK SOLUTION (which we got from HistFitter)
-        # First set up an output filter (most of the output seems
-        # pretty useless).  There are a bunch of errors saying the
-        # nominal lumi has been set twice, which seem harmless.  Also
-        # somc stuff about missing a parameter of interest in the
-        # non-combined workspaces, which seems harmless since we're
-        # only using the combined one.
         pass_strings = ['ERROR:','WARNING:']
         veto_strings={
             'ERROR argument with name nominalLumi',
             'ERROR argument with name nom_alpha_',
-            "Can't find parameter of interest:"}
+            "Can't find parameter of interest: mu_SIG"}
         filter_args = dict(
             accept_re='({})'.format('|'.join(pass_strings)),
             veto_strings=veto_strings)
 
         if self.debug:
+            print ' --- printing tree ---'
             self.meas.PrintTree()
+            print ' --- printing xml ---'
             self.meas.PrintXML(results_dir)
-            self.hf.MakeModelAndMeasurementFast(self.meas)
-        else:
-            with OutputFilter(**filter_args):
-                self.hf.MakeModelAndMeasurementFast(self.meas)
+            print ' --- making model and measurement ---'
+
+        out_name = '{pfx}_combined_{meas}_model.root'.format(
+            pfx=self._get_ws_prefix(), meas=self.meas_name)
+
+        with OutputFilter(**filter_args):
+            from ROOT import TFile
+            h2ws = self.hf.HistoToWorkspaceFactoryFast(self.meas)
+            ws = h2ws.MakeCombinedModel(self.meas)
+
+        out_path = join(results_dir, out_name)
+        ws.writeToFile(out_path, True)
 
     def cleanup_results_dir(self, results_dir):
         """

@@ -1,7 +1,6 @@
 """Module containing fitting machinery"""
 
 from scharmfit.utils import OutputFilter
-import h5py
 import os, re, glob
 from os.path import isdir, join, basename
 from collections import defaultdict, Counter

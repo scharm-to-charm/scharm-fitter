@@ -72,6 +72,7 @@ class Workspace(object):
         # https://twiki.cern.ch/twiki/bin/viewauth/Atlas/LuminosityForPhysics
         lumiError = 0.028
         self.meas.SetLumiRelErr(lumiError)
+        self.meas.AddConstantParam("Lumi")
         self.meas.SetExportOnly(True)
 
         self.signal_point = None
@@ -155,7 +156,7 @@ class Workspace(object):
             raise ValueError('tried to overwrite {} with {}'.format(
                     self.signal_point, signal_name))
         self.signal_point = signal_name
-        self.meas.SetPOI("mu_SIG")
+        self.meas.SetPOI("mu_Sig")
 
     # ____________________________________________________________________
     # functions to add samples to the channel
@@ -203,7 +204,7 @@ class Workspace(object):
             signal.SetNormalizeByTheory(True)
 
             # set a floating normalization factor
-            signal.AddNormFactor('mu_SIG',1,0,2)
+            signal.AddNormFactor('mu_Sig',1,0,2)
 
             # --- add systematics ---
             syst_dict = self._systematics[region][self.signal_point]
@@ -252,7 +253,7 @@ class Workspace(object):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
         if not self.signal_point:
-            self.meas.SetPOI("mu_SIG")
+            self.meas.SetPOI("mu_Sig")
         if not isdir(results_dir):
             os.mkdir(results_dir)
 
@@ -278,7 +279,7 @@ class Workspace(object):
         veto_strings={
             'ERROR argument with name nominalLumi',
             'ERROR argument with name nom_alpha_',
-            "Can't find parameter of interest: mu_SIG"}
+            "Can't find parameter of interest: mu_Sig"}
         filter_args = dict(
             accept_re='({})'.format('|'.join(pass_strings)),
             veto_strings=veto_strings)

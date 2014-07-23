@@ -50,7 +50,6 @@ def get_fit_results( filename, resultName="RooExpandedFitResult_afterFit"):
     return regSys
 
 def get_corr_matrix( filename, resultName="RooExpandedFitResult_afterFit"):
-    # import itertools
     from scharmfit.utils import load_susyfit
     load_susyfit()
     from ROOT import Util, gROOT

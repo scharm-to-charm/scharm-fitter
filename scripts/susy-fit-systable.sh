@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 OUTDIR=bg_fit
-REGIONS=signal_mct150,cr_w_mct150_l1pt50,cr_z,cr_t
+REGIONS=signal_mct150,cr_w_mct150_l1pt50,cr_z,cr_t,cr_w_mct150
 SAMPLES=Wjets,Zjets,top,other
 
 usage() {
@@ -78,7 +78,7 @@ cat <<EOF > $TESTTABLES
 
 \title{SysTable}
 \author[$USER]{The Mystery (Wo)Man}
-\institute{Yal\`e}
+\institute{Yal\\\`e}
 \begin{document}
 
 \begin{tiny}

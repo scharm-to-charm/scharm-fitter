@@ -90,5 +90,5 @@ if __name__ == "__main__":
         args.after_fit_workspace, resultName)
     cormat = {'correlation_matrix': {
         'parameters': parameter_names, 'matrix' : corr_matrix}}
-    print yaml.dump(cormat, default_flow_style=None)
+    sys.stdout.write(yaml.dump(cormat, default_flow_style=None))
 

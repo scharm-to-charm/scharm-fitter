@@ -519,7 +519,6 @@ def _update_with_relative_systematics(existing, rel_systs, all_proc):
                     if sys_name in exist_process:
                         raise ValueError('tried to overwrite systematic')
                     exist_process[sys_name] = downup
-                    existing[region_name][process_name] = old_systs
             except AttributeError as err:
                 if "object has no attribute 'iteritems'" not in str(err):
                     raise

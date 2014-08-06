@@ -58,6 +58,8 @@ class Workspace(object):
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
 
+        yields = _combine_backgrounds(yields, config['combined_backgrounds'])
+
         self._yields = yields[self.baseline_yields_key]
 
         self._load_systematics(yields, config, all_sp + backgrounds)
@@ -446,6 +448,42 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     # by hand...
 
     return rel_systs
+
+def _combine_backgrounds(yields, combine_dict):
+    """combine some backgrounds, return the result"""
+
+    def rename(proc):
+        for new, olds in combine_dict.items():
+            if proc in olds:
+                return new
+        return proc
+
+    def combine(region):
+        newreg = {}
+        for proc, vals in region.iteritems():
+            newproc = rename(proc)
+            if newproc not in newreg:
+                newreg[newproc] = vals
+            else:
+                val = newreg[newproc][0]
+                val += vals[0]
+                if len(newreg[newproc]) > 1:
+                    err = newreg[newproc][1]
+                    err = (err**2 + vals[1]**2)**0.5
+                    newreg[newproc] = [val, err]
+                else:
+                    newreg[newproc] = [val]
+        return newreg
+
+    nom_yields = yields[_baseline_yields_key]
+    new_nom = {x:combine(y) for x, y in nom_yields.items()}
+    new_systs = {}
+    for syst, regdic in yields[_yield_systematics_key].items():
+        new_sysreg = new_systs.setdefault(syst, {})
+        for regname, procdic in regdic.items():
+            new_sysreg[regname] = combine(procdic)
+    return {_baseline_yields_key: new_nom, _yield_systematics_key: new_systs}
+
 
 _asym_suffix_up = 'up'
 _asym_suffix_down = 'down'

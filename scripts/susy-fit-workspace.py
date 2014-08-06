@@ -137,6 +137,7 @@ def _get_config(cfg_name, yields_dict):
             'combine_tagging': False,
             'fixed_backgrounds': ['other'],
             'systematics': list(all_syst),
+            'combined_backgrounds': {'other':['singleTop']},
             }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:

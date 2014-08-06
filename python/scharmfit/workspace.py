@@ -482,7 +482,10 @@ def _combine_backgrounds(yields, combine_dict):
         new_sysreg = new_systs.setdefault(syst, {})
         for regname, procdic in regdic.items():
             new_sysreg[regname] = combine(procdic)
-    return {_baseline_yields_key: new_nom, _yield_systematics_key: new_systs}
+    return {
+        _baseline_yields_key: new_nom,
+        _yield_systematics_key: new_systs,
+        _relative_systematics_key: yields[_relative_systematics_key]}
 
 
 _asym_suffix_up = 'up'

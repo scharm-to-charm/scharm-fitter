@@ -68,7 +68,7 @@ def _multispaces(config):
         print 'booking background with config {}'.format(cfg_name)
         cfg = cfg_name, fit_cfg
         _book_signal_point(yields, '', cfg, misc_config)
-        # _book_signal_point(yields, 'pseudodata', cfg, misc_config)
+        _book_signal_point(yields, 'pseudodata', cfg, misc_config)
         for signal_point in signal_points:
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)

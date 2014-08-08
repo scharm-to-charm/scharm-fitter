@@ -85,6 +85,7 @@ class Workspace(object):
         self.do_pseudodata = False
         self.blinded = True
         self.pseudodata_regions = {}
+        self._non_fit_regions = set()
 
         self._has_sr = False
 
@@ -137,6 +138,14 @@ class Workspace(object):
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, cr)
         self.channels[cr] = chan
+
+    def add_vr(self, vr):
+        """
+        same as adding a cr, but doesn't add it to the fit in
+        histfitter magic stage
+        """
+        self.add_cr(vr)
+        self._non_fit_regions.add(vr)
 
     def add_sr(self, sr):
         self._has_sr = True
@@ -367,7 +376,8 @@ class Workspace(object):
         # commented out line that sets 'lumiConst' to true if there
         # are no signal channels. May be worth looking into...
         for chan in self.channels:
-            fc.m_bkgConstrainChannels.push_back(chan)
+            if chan not in self._non_fit_regions:
+                fc.m_bkgConstrainChannels.push_back(chan)
             # fc.m_signalChannels.push_back(chan)
 
         accept_strings = {'ERROR:','WARNING:'} if not verbose else {''}

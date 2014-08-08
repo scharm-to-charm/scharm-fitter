@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 OUTDIR=bg_fit
-REGIONS=signal_mct150,cr_w_mct150_l1pt50,cr_z,cr_t,cr_w_mct150
+REGIONS=signal_mct150,cr_w,cr_z,cr_t
 SAMPLES=Wjets,Zjets,top,other
 
 usage() {
@@ -108,7 +108,7 @@ EOF
 
 # replace region names
 SRE='s/signal\\_mct150/Signal (\$m_{\\rm CT} > 150\\,\\text{GeV}\$)/'
-WRE='s/cr\\_w\\_mct150/CRW/'
+WRE='s/cr\\_w/CRW/'
 ZRE='s/cr\\_z/CRZ/'
 TRE='s/cr\\_t/CRT/'
 sed -i -e "$SRE" -e $WRE -e $ZRE -e $TRE $TABOUT

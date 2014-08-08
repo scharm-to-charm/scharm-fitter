@@ -100,6 +100,8 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
         fit.add_sr(sr)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
+    for vr in fit_config.get('validation_regions', []):
+        fit.add_vr(vr)
 
     out_dir = join(misc_config['out_dir'], cfg_name)
     if not isdir(out_dir):

@@ -58,7 +58,8 @@ class Workspace(object):
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
 
-        yields = _combine_backgrounds(yields, config['combined_backgrounds'])
+        yields = _combine_backgrounds(
+            yields, config.get('combined_backgrounds',{}))
 
         self._yields = yields[self.baseline_yields_key]
 
@@ -152,6 +153,7 @@ class Workspace(object):
         chan = self.hf.Channel(sr)
         if self.blinded:
             self.pseudodata_regions[sr] = chan
+            self._non_fit_regions.add(sr)
         else:
             # print 'unblind!'
             data_count = self._yields[sr]['data']
@@ -274,6 +276,8 @@ class Workspace(object):
             # add the pseudodata regions
             if chan_name in self.pseudodata_regions:
                 pseudo_count = self.region_sums[chan_name]
+                if chan_name in self._non_fit_regions:
+                    pseudo_count = 0.0
                 with OutputFilter():
                     channel.SetData(pseudo_count)
             self.meas.AddChannel(channel)

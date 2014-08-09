@@ -4,6 +4,10 @@ Cleaned up version of PrintFitResults, I'm mainly interested in using it
 to get the fit parameters as a yaml file.
 """
 
+_cormat_key = 'correlation_matrix'
+_par_key = 'parameters'
+_mat_key = 'matrix'
+
 def _dict_from_par(ip):
     return {
         'value': ip.getVal(),
@@ -88,7 +92,7 @@ if __name__ == "__main__":
 
     parameter_names, corr_matrix = get_corr_matrix(
         args.after_fit_workspace, resultName)
-    cormat = {'correlation_matrix': {
-        'parameters': parameter_names, 'matrix' : corr_matrix}}
+    cormat = {_cormat_key: {
+        _par_key: parameter_names, _mat_key : corr_matrix}}
     sys.stdout.write(yaml.dump(cormat, default_flow_style=None))
 

@@ -105,7 +105,7 @@ creation routine. This is formatted as:
 ```yaml
 CONFIG_NAME:
   control_regions: [REG1, REG2, ...]
-  signal_region: SIG_REGION
+  signal_regions: [SIG_REGION]
   combine_tagging: TRUE_OR_FALSE
   fixed_backgrounds: [BG1, BG2, ...]
   systematics: [SYS1, SYS2, ...]

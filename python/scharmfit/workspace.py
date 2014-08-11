@@ -254,12 +254,11 @@ class Workspace(object):
     def _get_ws_prefix(self):
         """
         The workspace is named according to the signal point. If there's
-        no signal point, it's called either 'pseudodata' (if there's
-        a signal region specified) or 'background' (only control regions)
+        no signal point, it's called 'background'
         """
         if self.signal_point:
             return self.signal_point
-        return 'pseudodata' if self._has_sr else 'background'
+        return 'background'
 
     def save_workspace(self, results_dir, verbose=False):
         # if we haven't set a signal point, need to set a dummy

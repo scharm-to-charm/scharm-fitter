@@ -2,13 +2,13 @@ default:
   combine_tagging: false
   control_regions: [cr_w, cr_t, cr_z]
   fixed_backgrounds: [other]
-  signal_region: signal
+  signal_regions: [signal]
   systematics: [jer, c, b, u, t, trigger, somesyst]
 
-vr_signal:
+combined:
   combine_tagging: true
   control_regions: [cr_w, cr_t, cr_z]
   # validation_regions: [signal]
   fixed_backgrounds: [other]
-  signal_region: signal
+  signal_regions: [signal]
   systematics: [jer, c, b, u, t, trigger, somesyst]

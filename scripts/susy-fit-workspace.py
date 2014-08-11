@@ -68,12 +68,10 @@ def _multispaces(config):
         print 'booking background with config {}'.format(cfg_name)
         cfg = cfg_name, fit_cfg
         _book_signal_point(yields, '', cfg, misc_config)
-        if not fit_cfg.get('validation_regions'):
-            _book_signal_point(yields, 'pseudodata', cfg, misc_config)
-            for signal_point in signal_points:
-                print 'booking signal point {} with {} config'.format(
-                    signal_point, cfg_name)
-                _book_signal_point(yields, signal_point, cfg, misc_config)
+        for signal_point in signal_points:
+            print 'booking signal point {} with {} config'.format(
+                signal_point, cfg_name)
+            _book_signal_point(yields, signal_point, cfg, misc_config)
 
     # relies on HistFitter's global variables, has to be run after
     # booking a bunch of workspaces.
@@ -95,14 +93,16 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     if misc_config['debug']:
         fit.debug = True
     if signal_point:
-        if signal_point != 'pseudodata':
-            fit.set_signal(signal_point)
-        sr = fit_config['signal_region']
+        fit.set_signal(signal_point)
+    for sr in fit_config['signal_regions']:
         fit.add_sr(sr)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
-    for vr in fit_config.get('validation_regions', []):
-        fit.add_vr(vr)
+    # we can't do hypothisis testing with validation regions, so we only
+    # add the validation regions when no signal point is specified
+    if not signal_point:
+        for vr in fit_config.get('validation_regions', []):
+            fit.add_vr(vr)
 
     out_dir = join(misc_config['out_dir'], cfg_name)
     if not isdir(out_dir):
@@ -132,11 +132,12 @@ def _get_config(cfg_name, yields_dict):
         'control_regions': [
             x for x in yields_dict[_nom_yields_key] if x.startswith('cr_')
             ],
-        'signal_region': 'signal_mct150',
+        'signal_regions': ['signal_mct150'],
         'combine_tagging': False,
         'fixed_backgrounds': ['other'],
         'systematics': list(all_syst),
         'combined_backgrounds': {'other':['singleTop']},
+        'validation_regions': [],
         }
     if isfile(cfg_name):
         with open(cfg_name) as yml:
@@ -156,7 +157,8 @@ def _get_config(cfg_name, yields_dict):
     y_regs = set(yields_dict[_nom_yields_key].iterkeys())
     f_regs = set(
         ichain(c['control_regions'] for c in fit_configs.itervalues()))
-    f_regs |= set(c['signal_region'] for c in fit_configs.itervalues())
+    f_regs |= set(
+        ichain(c['signal_regions'] for c in fit_configs.itervalues()))
     missing_regions = f_regs - y_regs
     if missing_regions:
         raise ValueError('missing regions: {}'.format(

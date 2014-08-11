@@ -128,20 +128,24 @@ def _get_config(cfg_name, yields_dict):
     """gets / generates the fit config file"""
 
     all_syst = _all_syst_from_yields(yields_dict)
+    def_config = {
+        'control_regions': [
+            x for x in yields_dict[_nom_yields_key] if x.startswith('cr_')
+            ],
+        'signal_region': 'signal_mct150',
+        'combine_tagging': False,
+        'fixed_backgrounds': ['other'],
+        'systematics': list(all_syst),
+        'combined_backgrounds': {'other':['singleTop']},
+        }
     if isfile(cfg_name):
         with open(cfg_name) as yml:
             fit_configs = yaml.load(yml)
+        for cfg in fit_configs.values():
+            for opt in cfg:
+                if opt not in def_config:
+                    raise ValueError('invalid config option: {}'.format(opt))
     else:
-        def_config = {
-            'control_regions': [
-                x for x in yields_dict[_nom_yields_key] if x.startswith('cr_')
-                ],
-            'signal_region': 'signal_mct150',
-            'combine_tagging': False,
-            'fixed_backgrounds': ['other'],
-            'systematics': list(all_syst),
-            'combined_backgrounds': {'other':['singleTop']},
-            }
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:
             yml.write(yaml.dump(fit_configs, width=70))

@@ -51,15 +51,14 @@ class Workspace(object):
     _nkey = 0                  # yield
     _errkey = 1                # stat error
     def __init__(self, yields, config):
+        yields = _combine_backgrounds(
+            yields, config.get('combined_backgrounds',{}))
         all_sp, backgrounds = get_signal_points_and_backgrounds(yields)
         _check_subset(config['fixed_backgrounds'], backgrounds)
         self.fixed_backgrounds = config['fixed_backgrounds']
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
-
-        yields = _combine_backgrounds(
-            yields, config.get('combined_backgrounds',{}))
 
         self._yields = yields[self.baseline_yields_key]
 

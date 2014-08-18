@@ -749,7 +749,9 @@ LimitResult RooStats::get_Pvalue(     RooWorkspace* w,
                 modelSBName, modelBName,
                 dataName, 
                 nuisPriorName ) ;
-        if (result==0) { return lres; }    
+        if (result==0) { return lres; }
+	// don't know why I need this, but I need this
+	if (result->ArraySize() == 0) return lres;
         lres = RooStats::get_Pvalue( result );
 
     } else {  // discovery

@@ -87,8 +87,6 @@ class Workspace(object):
         self.pseudodata_regions = {}
         self._non_fit_regions = set()
 
-        self._has_sr = False
-
         # we have to add the channels to the measurement _after_
         # adding data to the channels.  We're using pseudodata, which
         # means we have to save the channels and add them later.
@@ -148,11 +146,12 @@ class Workspace(object):
         self._non_fit_regions.add(vr)
 
     def add_sr(self, sr):
-        self._has_sr = True
         chan = self.hf.Channel(sr)
         if self.blinded:
             self.pseudodata_regions[sr] = chan
-            self._non_fit_regions.add(sr)
+            # don't fit the SR if this is a BG only fit
+            if not self.signal_point:
+                self._non_fit_regions.add(sr)
         else:
             # print 'unblind!'
             data_count = self._yields[sr]['data']
@@ -167,6 +166,8 @@ class Workspace(object):
         if self.signal_point:
             raise ValueError('tried to overwrite {} with {}'.format(
                     self.signal_point, signal_name))
+        if self.channels:
+            raise ValueError("can't set signal point after adding regions")
         self.signal_point = signal_name
         self.meas.SetPOI("mu_Sig")
 
@@ -260,6 +261,32 @@ class Workspace(object):
             return self.signal_point
         return 'background'
 
+    def _build_measurement(self):
+        """
+        Fill the pseudodata regions to complete measurement.
+        """
+        for chan_name, channel in self.channels.iteritems():
+            # add the pseudodata regions
+            if chan_name in self.pseudodata_regions:
+                pseudo_count = self.region_sums[chan_name]
+                if chan_name in self._non_fit_regions:
+                    pseudo_count = 0.0
+                with OutputFilter():
+                    channel.SetData(pseudo_count)
+            self.meas.AddChannel(channel)
+
+        # some safety checks
+        n_free_pars = len(self.backgrounds) - len(self.fixed_backgrounds)
+        if self.signal_point:
+            n_free_pars += 1
+
+        n_chan = len(self.channels) - len(self._non_fit_regions)
+        if n_free_pars > n_chan:
+            err_tmp = (
+                'underrestrained fit: '
+                '{} free parameters restrained by only {} regions')
+            raise ValueError(err_tmp.format(n_free_pars, n_chan))
+
     def save_workspace(self, results_dir, verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
@@ -270,15 +297,7 @@ class Workspace(object):
 
         # we actually build the measurement here (couldn't be done earlier
         # because we needed to calculate pseudo-data)
-        for chan_name, channel in self.channels.iteritems():
-            # add the pseudodata regions
-            if chan_name in self.pseudodata_regions:
-                pseudo_count = self.region_sums[chan_name]
-                if chan_name in self._non_fit_regions:
-                    pseudo_count = 0.0
-                with OutputFilter():
-                    channel.SetData(pseudo_count)
-            self.meas.AddChannel(channel)
+        self._build_measurement()
 
         # don't want to save the output files in the current dir, set
         # the output prefix here.

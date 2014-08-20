@@ -19,12 +19,11 @@ _norm_factor_head = r"""
 {\bf Normalisation factor}  & Value \\
 \hline"""
 _norm_factor_tmp = r"""
-mu\_top & ${t:.2f} \pm {et:.2f}$ \\
-\hline
-mu\_Z & ${z:.2f} \pm {ez:.2f}$ \\
-\hline
-mu\_W & ${w:.2f} \pm {ew:.2f}$ \\
-\hline"""
+luminosity & ${l:.2f} \pm {el:.2f}$ \\
+top        & ${t:.2f} \pm {et:.2f}$ \\
+$Z$ + jets & ${z:.2f} \pm {ez:.2f}$ \\
+$W$ + jets & ${w:.2f} \pm {ew:.2f}$ \\
+"""
 _norm_factor_tail = r"""
 \end{tabular}
 \end{center}
@@ -37,6 +36,8 @@ def _get_mu_table(pars):
         return pars['mu_' + key]['after']['error']
     mu_table = _norm_factor_head
     mu_table += _norm_factor_tmp.format(
+        l=pars['Lumi']['after']['value'],
+        el=pars['Lumi']['after']['error'],
         t=val('top'), et=err('top'),
         z=val('Zjets'), ez=err('Zjets'),
         w=val('Wjets'), ew=err('Wjets'))

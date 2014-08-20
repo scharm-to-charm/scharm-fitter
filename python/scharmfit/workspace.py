@@ -74,7 +74,7 @@ class Workspace(object):
         # https://twiki.cern.ch/twiki/bin/viewauth/Atlas/LuminosityForPhysics
         lumiError = 0.028
         self.meas.SetLumiRelErr(lumiError)
-        self.meas.AddConstantParam("Lumi")
+        # self.meas.AddConstantParam("Lumi")
         self.meas.SetExportOnly(True)
 
         self.signal_point = None
@@ -237,9 +237,10 @@ class Workspace(object):
 
         if not bg in self.fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
+        else:
+            # SEE ABOVE COMMENT on SetNormalizeByTheory
+            background.SetNormalizeByTheory(True)
 
-        # SEE ABOVE COMMENT on SetNormalizeByTheory
-        background.SetNormalizeByTheory(False)
         # SEE ABOVE COMMENT on ActivateStatError
         background.ActivateStatError()
         # --- add systematics ---

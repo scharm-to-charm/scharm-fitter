@@ -23,7 +23,7 @@ luminosity & ${l:.2f} \pm {el:.2f}$ \\
 top        & ${t:.2f} \pm {et:.2f}$ \\
 $Z$ + jets & ${z:.2f} \pm {ez:.2f}$ \\
 $W$ + jets & ${w:.2f} \pm {ew:.2f}$ \\
-"""
+\hline"""
 _norm_factor_tail = r"""
 \end{tabular}
 \end{center}

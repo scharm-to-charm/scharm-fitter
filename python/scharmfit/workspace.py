@@ -84,6 +84,7 @@ class Workspace(object):
         self.region_sums = Counter()
         self.do_pseudodata = False
         self.blinded = True
+        self.inject = False
         self.pseudodata_regions = {}
         self._non_fit_regions = set()
 
@@ -147,7 +148,7 @@ class Workspace(object):
 
     def add_sr(self, sr):
         chan = self.hf.Channel(sr)
-        if self.blinded:
+        if self.blinded or self.inject:
             self.pseudodata_regions[sr] = chan
             # don't fit the SR if this is a BG only fit
             if not self.signal_point:
@@ -204,6 +205,10 @@ class Workspace(object):
             sig_yield = yields[region][self.signal_point]
             signal_count = sig_yield[self._nkey]
             _set_value(signal, signal_count, sig_yield[self._errkey])
+
+            # add the signal to the region sum if we're doing injection
+            if self.inject:
+                self.region_sums[region] += signal_count
 
             # ACHTUNG: I _think_ this has to be called to make sure
             # the statistical error is used in the fit. I assume we should

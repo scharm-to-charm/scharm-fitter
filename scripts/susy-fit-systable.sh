@@ -18,6 +18,7 @@ Options:
  -t make test presentation
  -o <out_dir> set output dir
  -r reg1,reg2,etc set regions
+ -s sample1,sample2,etc set samples
 EOF
 }
 
@@ -29,6 +30,7 @@ do
 	-o) shift; OUTDIR=$1; shift;;
 	-t) MKTEST=1; shift;;
 	-r) shift; REGIONS=$1; shift;;
+	-s) shift; SAMPLES=$1; shift;;
 	*)
 	    if [[ -n $input ]]
 		then

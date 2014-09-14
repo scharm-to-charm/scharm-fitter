@@ -13,8 +13,9 @@ def _dict_from_par(ip):
         'value': ip.getVal(),
         'error': ip.getError(),
         # there are these other guys, but not sure anyone cares...
-        # 'unctdn': ip.getErrorLo(),
-        # 'unctup': ip.getErrorHi()
+        # they are identical to .getError() (except that 'Lo' is negative)
+        # 'error_down': ip.getErrorLo(),
+        # 'error_up': ip.getErrorHi()
       }
 
 def get_fit_results( filename, resultName="RooExpandedFitResult_afterFit"):

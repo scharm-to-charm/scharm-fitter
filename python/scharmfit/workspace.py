@@ -340,26 +340,6 @@ class Workspace(object):
         out_path = join(results_dir, out_name)
         ws.writeToFile(out_path, True)
 
-    def cleanup_results_dir(self, results_dir):
-        """
-        Delete HistFactory byproducts that we don't need.
-        At this point it's not clear what we do and don't need...
-        """
-        pfx = self._get_ws_prefix()
-
-        # we want to keep these
-        good_tmp = [
-            '{pfx}_combined_{meas}_model.root',
-            '{pfx}_combined_{meas}_model_afterFit.root']
-        fmt = dict(pfx=pfx, meas=self.meas_name)
-        good_files = {join(results_dir, x.format(**fmt)) for x in good_tmp}
-
-        # remove everything else with this workspace's prefix
-        bad = glob.glob(join(results_dir,'{}_*'.format(pfx)))
-        for trash in bad:
-            if not trash in good_files:
-                os.remove(trash)
-
     def do_histfitter_magic(self, ws_dir, verbose=False):
         """
         Here we break into histfitter voodoo. The functions here are pulled
@@ -487,7 +467,10 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     return rel_systs
 
 def _combine_backgrounds(yields, combine_dict):
-    """combine some backgrounds, return the result"""
+    """
+    Combine some backgrounds in the yeilds dictionary.
+    Return the resulting dictionary with the yields merged.
+    """
 
     def rename(proc):
         for new, olds in combine_dict.items():
@@ -531,8 +514,9 @@ _asym_suffix_down = 'down'
 def _filter_systematics(original, requested):
     """
     Slim down 'original' dict of systematics by only allowing
-    `requested` and up / down variations of `requested`. Return a
-    slimed selection, along with a list of the systematics that
+    `requested` and up / down variations of `requested`.
+    Return a tuple (filtered, missing), where `filtered` is the
+    slimed selection, `missing` is a list of the systematics that
     weren't found.
     """
     filtered = {}
@@ -563,9 +547,10 @@ def _filter_rel_systematics(original, requested):
 
 def _split_systematics(systematics):
     """
-    Split into symmetric and asymmetric vairations.
-    Find the systematics with an "up" and "down" version, call these
-    asymmetric.
+    Split into symmetric and asymmetric vairations and return a tuple
+    (symmetric, asymmetric).
+    Works by finding the systematics with an "up" and "down" suffix,
+    and calling these asymmetric.
     """
     asym = set()
     for sys in systematics:

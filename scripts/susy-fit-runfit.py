@@ -10,7 +10,7 @@ from scharmfit.calculators import UpperLimitCalc, CLsCalc
 from os import walk
 
 # look for these guys to fit
-_magic_file_name = 'scharm*_combined_*_model.root'
+_magic_file_name = 'scharm*prefit.root'
 
 def run():
     d = '(default: %(default)s)'
@@ -59,7 +59,7 @@ def _make_calc_file(config):
     with open(config.output_file,'w') as out_yml:
         out_yml.write(yaml.dump(cfg_dict))
 
-_sp_re = re.compile('scharm-([0-9]+)-([0-9]+)_combined')
+_sp_re = re.compile('scharm-([0-9]+)-([0-9]+)_')
 def _get_sp_dict(workspace_name):
     """gets a dictionary describing the signal point"""
     schs, lsps = _sp_re.search(workspace_name).group(1,2)

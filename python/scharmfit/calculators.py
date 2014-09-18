@@ -57,7 +57,11 @@ class CLsCalc(object):
         for now has no init... In the future we may set things like
         the fit method (use toys, asymptotic, CLs vs whatever...)
         """
-        pass
+        # magic strings, found on the end of filenames
+        self.nominal = 'nominal'
+        self.up1s = 'up1sigma'
+        self.down1s = 'down1sigma'
+
     def calculate_cls(self, workspace_name):
         """
         returns a dictionary of CLs values
@@ -81,12 +85,19 @@ class CLsCalc(object):
                 2,                      # asymtotic calculator
                 3,                      # test type (3 is atlas standard)
                 )
-        return dict(
-            cls=limit.GetCLs(),
-            cls_exp=limit.GetCLsexp(),
-            cls_up_1_sigma=limit.GetCLsu1S(),
-            cls_down_1_sigma=limit.GetCLsd1S(),
-            cls_up_2_sigma=limit.GetCLsu2S(),
-            cls_down_2_sigma=limit.GetCLsd2S())
-
+        ws_type = workspace_name.rsplit('_',1)[1].split('.')[0]
+        if ws_type == self.nominal:
+            return {
+                'obs':limit.GetCLs(),
+                'exp':limit.GetCLsexp(),
+                'exp_u1s':limit.GetCLsu1S(),
+                'exp_d1s':limit.GetCLsd1S(),
+                }
+        elif ws_type == self.up1s:
+            return {'obs_u1s':limits.GetCLs()}
+        elif ws_type == self.down1s:
+            return {'obs_d1s':limits.GetCLs()}
+        # should never get here
+        raise ValueError('can\'t classify {} as type of limit'.format(
+                workspace_name))
 

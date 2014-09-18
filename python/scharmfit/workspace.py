@@ -42,7 +42,7 @@ class Workspace(object):
     # -- various definitions (for histfitter and input textfile schema)
     # histfitter
     meas_name = 'meas'
-    exp_prefit_name = '{pfx}_expected.root'
+    nom_prefit_name = '{pfx}_nominal.root'
 
     # input file schema
     baseline_yields_key = _baseline_yields_key
@@ -330,7 +330,7 @@ class Workspace(object):
             self.meas.PrintXML(results_dir)
             print ' --- making model and measurement ---'
 
-        out_name = self.exp_prefit_name.format(pfx=self._get_ws_prefix())
+        out_name = self.nom_prefit_name.format(pfx=self._get_ws_prefix())
 
         with OutputFilter(**filter_args):
             from ROOT import TFile
@@ -350,7 +350,7 @@ class Workspace(object):
         utils.load_susyfit()
         from ROOT import ConfigMgr, Util
 
-        ws_name = self.exp_prefit_name.format(pfx=self._get_ws_prefix())
+        ws_name = self.nom_prefit_name.format(pfx=self._get_ws_prefix())
         ws_path = join(ws_dir, ws_name)
 
         # The histfitter authors somehow thought that creating a

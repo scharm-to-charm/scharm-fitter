@@ -151,14 +151,14 @@ class Workspace(object):
         chan = self.hf.Channel(sr)
         if self.blinded or self.inject:
             self.pseudodata_regions[sr] = chan
-            # don't fit the SR if this is a BG only fit
-            if not self.signal_point:
-                self._non_fit_regions.add(sr)
         else:
             # print 'unblind!'
             data_count = self._yields[sr]['data']
             with OutputFilter():
                 chan.SetData(data_count[self._nkey])
+        # don't fit the SR if this is a BG only fit
+        if not self.signal_point:
+            self._non_fit_regions.add(sr)
         # ACHTUNG: again, not sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, sr)

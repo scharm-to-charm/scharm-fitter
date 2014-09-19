@@ -29,7 +29,7 @@ def run():
     parser.add_argument('-b', '--background-only', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
     data_version = parser.add_mutually_exclusive_group()
-    data_version.add_argument('--unblind', action='store_true')
+    data_version.add_argument('--blind', action='store_true', dest='blind')
     data_version.add_argument('--injection', action='store_true')
     hf_action = parser.add_mutually_exclusive_group()
     hf_action.add_argument('-f', '--after-fit', action='store_true',
@@ -62,7 +62,7 @@ def _multispaces(config):
     misc_config = dict(
         out_dir=config.out_dir,
         debug=config.debug, do_hf=run_histfitter, verbose=config.verbose,
-        unblind=config.unblind, injection=config.injection)
+        blind=config.blind, injection=config.injection)
 
     # loop ovar all signal points and fit configurations. Note that
     # memory leaks in HistFactory make this difficult.
@@ -90,12 +90,9 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     # ROOT.gDirectory.GetList().Delete() # maybe fix?
 
     fit = Workspace(yields, fit_config)
-    if misc_config['unblind']:
-        fit.blinded = False
-    if misc_config['injection']:
-        fit.inject = True
-    if misc_config['debug']:
-        fit.debug = True
+    fit.blinded = misc_config['blind']
+    fit.inject = misc_config['injection']
+    fit.debug = misc_config['debug']
     if signal_point:
         fit.set_signal(signal_point)
     for sr in fit_config['signal_regions']:

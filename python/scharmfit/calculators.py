@@ -94,9 +94,9 @@ class CLsCalc(object):
                 'exp_d1s':limit.GetCLsd1S(),
                 }
         elif ws_type == self.up1s:
-            return {'obs_u1s':limits.GetCLs()}
+            return {'obs_u1s':limit.GetCLs()}
         elif ws_type == self.down1s:
-            return {'obs_d1s':limits.GetCLs()}
+            return {'obs_d1s':limit.GetCLs()}
         # should never get here
         raise ValueError('can\'t classify {} as type of limit'.format(
                 workspace_name))

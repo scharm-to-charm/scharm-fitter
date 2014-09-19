@@ -42,7 +42,10 @@ class Workspace(object):
     # -- various definitions (for histfitter and input textfile schema)
     # histfitter
     meas_name = 'meas'
-    nom_prefit_name = '{pfx}_nominal.root'
+    name_tpl = '{pfx}_{sigdir}.root'
+    nominal = 'nominal'
+    up1s = 'up1sigma'
+    down1s = 'down1sigma'
 
     # input file schema
     baseline_yields_key = _baseline_yields_key
@@ -52,44 +55,45 @@ class Workspace(object):
     _nkey = 0                  # yield
     _errkey = 1                # stat error
     def __init__(self, yields, fit_config, misc_config):
+        self._fixed_backgrounds = fit_config['fixed_backgrounds']
+        self._setup_misc_config(misc_config)
+
+        # load yields
         yields = _combine_backgrounds(
             yields, fit_config.get('combined_backgrounds',{}))
+        self._yields = yields[self.baseline_yields_key]
+
+        # load systematics and save list of backgrounds
         all_sp, backgrounds = get_signal_points_and_backgrounds(yields)
         _check_subset(fit_config['fixed_backgrounds'], backgrounds)
-        self.fixed_backgrounds = fit_config['fixed_backgrounds']
+        self._load_systematics(yields, fit_config, all_sp + backgrounds)
+        self._backgrounds = backgrounds
+
+        # load in signal systematics
+        rel_yields = yields[self.relative_systematics_key]
+        self._load_signal_systs(rel_yields, fit_config, misc_config)
+
+        # create / configure the measurement
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
-
-        self._yields = yields[self.baseline_yields_key]
-
-        self._load_systematics(yields, fit_config, all_sp + backgrounds)
-        self._setup_misc_config(misc_config)
-
-        self.backgrounds = backgrounds
-
-        # create / configure the measurement
         self.meas = self.hf.Measurement(self.meas_name, self.meas_name)
-        self.meas.SetLumi(1.0)
 
         # NOTE: see this twiki for lumi ref
         # https://twiki.cern.ch/twiki/bin/viewauth/Atlas/LuminosityForPhysics
+        self.meas.SetLumi(1.0)
         lumiError = 0.028
         self.meas.SetLumiRelErr(lumiError)
-        # self.meas.AddConstantParam("Lumi")
-        self.meas.SetExportOnly(True)
 
         self._signal_point = None
         # for blinding / pseudodata: `pseudodata` just means the sume of SM
-        # backgrounds are used. If `blinded` is set to true we use this in
-        # the control region
+        # backgrounds are used.
         self._region_sums = Counter()
         self._pseudodata_regions = set()
         self._non_fit_regions = set()
 
-        # we have to add the channels to the measurement _after_
-        # adding data to the channels.  We're using pseudodata, which
-        # means we have to save the channels and add them later.
+        # We're using pseudodata, which means we have to save the
+        # channels and add them to meas later.
         self._channels = {}
 
     def _setup_misc_config(self, misc_config):
@@ -97,7 +101,6 @@ class Workspace(object):
         self._blinded = misc_config['blind']
         self._inject = misc_config['injection']
         self.debug = misc_config['debug']
-        self._signal_systematic = misc_config['signal_systematic']
         self._do_pseudodata = False
 
     def _load_systematics(self, yields, config, all_proc):
@@ -127,6 +130,17 @@ class Workspace(object):
             yields.get(self.relative_systematics_key, {}), missing_syst)
         _update_with_relative_systematics(
             self._systematics, rel_systs, all_proc)
+
+    def _load_signal_systs(self, rel_syst, fit_config, misc_config):
+        """
+        load signal systematics from relative systematics, fit config,
+        and misc config files.
+        """
+        siglist = fit_config.get('signal_systematics',[])
+        updown = misc_config['signal_systematic']
+        self._sigsysts = _get_signal_systematics(rel_syst, siglist, updown)
+        outnames = {'up': self.up1s, 'down': self.down1s}
+        self._sigsyst_name = outnames.get(updown) or self.nominal
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
@@ -184,57 +198,48 @@ class Workspace(object):
         """
         Adds the signal mc and the backgrounds to this channel.
         """
-        self._add_signal_to_channel(chan, region)
+        sp = self._signal_point
+        if sp and sp in self._yields[region]:
+            self._add_signal_to_channel(chan, region)
 
-        for bg in self.backgrounds:
+        for bg in self._backgrounds:
             self._add_background_to_channel(chan, region, bg)
 
     def _add_signal_to_channel(self, chan, region):
         """should be called by _add_mc_to_channel"""
-        if self._signal_point:
-            # get yield / stat error in SR
-            yields = self._yields
+        # get yield / stat error in SR
+        yields = self._yields
 
-            # signal points don't have to be saved in the yaml file,
-            # the fit works fine without them.
-            if not self._signal_point in yields[region]:
-                return
+        # If we're this far, we can create the signal sample
+        sname = '_'.join([self._signal_point,region])
+        signal = self.hf.Sample(sname)
 
-            # If we're this far, we can create the signal sample
-            sname = '_'.join([self._signal_point,region])
-            signal = self.hf.Sample(sname)
+        # I've kept the _nkey, and _errkey variables so it's easy to
+        # change over to a dictionary. For now they are list indices.
+        sig_yield = yields[region][self._signal_point]
+        syst = self._sigsysts.get((region,self._signal_point), 1.0)
+        signal_count = sig_yield[self._nkey] * syst
+        _set_value(signal, signal_count, sig_yield[self._errkey] * syst)
 
-            # The signal yield is a list with two entries (yield, stat_error)
-            # I've kept the _nkey, and _errkey variables so it's easy to
-            # change over to a dictionary. For now they are list indices.
-            sig_yield = yields[region][self._signal_point]
-            signal_count = sig_yield[self._nkey]
-            _set_value(signal, signal_count, sig_yield[self._errkey])
+        if self._inject:
+            self._region_sums[region] += signal_count
 
-            # add the signal to the region sum if we're doing injection
-            if self._inject:
-                self._region_sums[region] += signal_count
+        # ACHTUNG: The documentation basically says that
+        # this "activates" the statistical error... great!
+        signal.ActivateStatError()
 
-            # ACHTUNG: I _think_ this has to be called to make sure
-            # the statistical error is used in the fit. I assume we should
-            # always use it, but the documentation basically says that
-            # this "activates" the statistical error... great!
-            signal.ActivateStatError()
+        # I think this means the lumi uncertainty isn't used for this
+        # sample (i.e. it's not controled for by a control region)
+        signal.SetNormalizeByTheory(True)
 
-            # this does something with lumi error... I think it means
-            # the lumi uncertainty isn't used for this sample (i.e. it's not
-            # controled for by a control region)
-            signal.SetNormalizeByTheory(True)
+        signal.AddNormFactor('mu_Sig',1,0,2)
 
-            # set a floating normalization factor
-            signal.AddNormFactor('mu_Sig',1,0,2)
+        # --- add systematics ---
+        syst_dict = self._systematics[region][self._signal_point]
+        for syst, var in syst_dict.iteritems():
+            signal.AddOverallSys(syst, *var)
 
-            # --- add systematics ---
-            syst_dict = self._systematics[region][self._signal_point]
-            for syst, var in syst_dict.iteritems():
-                signal.AddOverallSys(syst, *var)
-
-            chan.AddSample(signal)
+        chan.AddSample(signal)
 
     def _add_background_to_channel(self, chan, region, bg):
         base_vals = self._yields[region].get(bg, [0.0, 0.0])
@@ -245,7 +250,7 @@ class Workspace(object):
         background = self.hf.Sample(sname)
         _set_value(background, bg_n, base_vals[self._errkey])
 
-        if not bg in self.fixed_backgrounds:
+        if not bg in self._fixed_backgrounds:
             background.AddNormFactor('mu_{}'.format(bg), 1,0,2)
         else:
             # SEE ABOVE COMMENT on SetNormalizeByTheory
@@ -263,14 +268,13 @@ class Workspace(object):
     # _________________________________________________________________
     # save the workspace
 
-    def _get_ws_prefix(self):
+    def _get_ws_name(self):
         """
         The workspace is named according to the signal point. If there's
         no signal point, it's called 'background'
         """
-        if self._signal_point:
-            return self._signal_point
-        return 'background'
+        prefix = self._signal_point or 'background'
+        return self.name_tpl.format(pfx=prefix, sigdir=self._sigsyst_name)
 
     def _build_measurement(self):
         """
@@ -287,7 +291,7 @@ class Workspace(object):
             self.meas.AddChannel(channel)
 
         # some safety checks
-        n_free_pars = len(self.backgrounds) - len(self.fixed_backgrounds)
+        n_free_pars = len(self._backgrounds) - len(self._fixed_backgrounds)
         if self._signal_point:
             n_free_pars += 1
 
@@ -312,8 +316,8 @@ class Workspace(object):
 
         # don't want to save the output files in the current dir, set
         # the output prefix here.
-        self.meas.SetOutputFilePrefix(
-            join(results_dir, self._get_ws_prefix()))
+        # self.meas.SetOutputFilePrefix(
+        #     join(results_dir, self._get_ws_prefix()))
 
         # I think this turns off the fitting...
         self.meas.SetExportOnly(True)
@@ -334,7 +338,7 @@ class Workspace(object):
             self.meas.PrintXML(results_dir)
             print ' --- making model and measurement ---'
 
-        out_name = self.nom_prefit_name.format(pfx=self._get_ws_prefix())
+        out_name = self._get_ws_name()
 
         with OutputFilter(**filter_args):
             from ROOT import TFile
@@ -354,7 +358,7 @@ class Workspace(object):
         utils.load_susyfit()
         from ROOT import ConfigMgr, Util
 
-        ws_name = self.nom_prefit_name.format(pfx=self._get_ws_prefix())
+        ws_name = self._get_ws_name()
         ws_path = join(ws_dir, ws_name)
 
         # The histfitter authors somehow thought that creating a
@@ -418,6 +422,25 @@ class Workspace(object):
 # _________________________________________________________________________
 # systematic calculation (convert yields to relative systematics,
 # combine b-tagging systematics, etc...)
+
+def _get_signal_systematics(rel_systs, syst_list, direction):
+    """
+    Return a {(region, process): multiplier, ...} dict.
+    The `direction` should be 'up','down', or None.
+    """
+    out_dict = {}
+    if not direction:
+        return out_dict
+    # translate version to an index in the systematic list
+    idx = {'down':0, 'up':1}[direction]
+    for syst in syst_list:
+        for region, procdict in rel_systs[syst].iteritems():
+            for proc, downup in procdict.iteritems():
+                # multiply the signal by the appropriate variation
+                mult = downup[idx]
+                out_key = region, proc
+                out_dict[out_key] = out_dict.get(out_key, 1.0) * mult
+    return out_dict
 
 def _get_relative_from_abs_systematics(base_yields, systematic_yields):
     """calculate relative systematics based on absolute values"""

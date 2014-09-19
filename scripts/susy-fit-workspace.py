@@ -141,6 +141,7 @@ def _get_config(cfg_name, yields_dict):
         'systematics': list(all_syst),
         'combined_backgrounds': {'other':['singleTop']},
         'validation_regions': [],
+        'signal_systematics': [],
         }
     if isfile(cfg_name):
         with open(cfg_name) as yml:

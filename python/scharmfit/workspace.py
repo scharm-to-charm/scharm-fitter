@@ -51,19 +51,20 @@ class Workspace(object):
     # number and error are stored as first and second entry
     _nkey = 0                  # yield
     _errkey = 1                # stat error
-    def __init__(self, yields, config):
+    def __init__(self, yields, fit_config, misc_config):
         yields = _combine_backgrounds(
-            yields, config.get('combined_backgrounds',{}))
+            yields, fit_config.get('combined_backgrounds',{}))
         all_sp, backgrounds = get_signal_points_and_backgrounds(yields)
-        _check_subset(config['fixed_backgrounds'], backgrounds)
-        self.fixed_backgrounds = config['fixed_backgrounds']
+        _check_subset(fit_config['fixed_backgrounds'], backgrounds)
+        self.fixed_backgrounds = fit_config['fixed_backgrounds']
         import ROOT
         with OutputFilter(): # turn off David and Wouter's self-promotion
             self.hf = ROOT.RooStats.HistFactory
 
         self._yields = yields[self.baseline_yields_key]
 
-        self._load_systematics(yields, config, all_sp + backgrounds)
+        self._load_systematics(yields, fit_config, all_sp + backgrounds)
+        self._setup_misc_config(misc_config)
 
         self.backgrounds = backgrounds
 
@@ -78,23 +79,26 @@ class Workspace(object):
         # self.meas.AddConstantParam("Lumi")
         self.meas.SetExportOnly(True)
 
-        self.signal_point = None
+        self._signal_point = None
         # for blinding / pseudodata: `pseudodata` just means the sume of SM
         # backgrounds are used. If `blinded` is set to true we use this in
         # the control region
-        self.region_sums = Counter()
-        self.do_pseudodata = False
-        self.blinded = True
-        self.inject = False
-        self.pseudodata_regions = {}
+        self._region_sums = Counter()
+        self._pseudodata_regions = set()
         self._non_fit_regions = set()
 
         # we have to add the channels to the measurement _after_
         # adding data to the channels.  We're using pseudodata, which
         # means we have to save the channels and add them later.
-        self.channels = {}
+        self._channels = {}
 
-        self.debug = False
+    def _setup_misc_config(self, misc_config):
+        """setup the stuff passed via command line"""
+        self._blinded = misc_config['blind']
+        self._inject = misc_config['injection']
+        self.debug = misc_config['debug']
+        self._signal_systematic = misc_config['signal_systematic']
+        self._do_pseudodata = False
 
     def _load_systematics(self, yields, config, all_proc):
         """
@@ -128,8 +132,8 @@ class Workspace(object):
     # top level methods to set control / signal regions
     def add_cr(self, cr):
         chan = self.hf.Channel(cr)
-        if self.do_pseudodata:
-            self.pseudodata_regions[cr] = chan
+        if self._do_pseudodata:
+            self._pseudodata_regions.add(cr)
         else:
             data_count = self._yields[cr]['data']
             with OutputFilter():
@@ -137,7 +141,7 @@ class Workspace(object):
         # ACHTUNG: not at all sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, cr)
-        self.channels[cr] = chan
+        self._channels[cr] = chan
 
     def add_vr(self, vr):
         """
@@ -149,28 +153,28 @@ class Workspace(object):
 
     def add_sr(self, sr):
         chan = self.hf.Channel(sr)
-        if self.blinded or self.inject:
-            self.pseudodata_regions[sr] = chan
+        if self._blinded or self._inject:
+            self._pseudodata_regions.add(sr)
         else:
             # print 'unblind!'
             data_count = self._yields[sr]['data']
             with OutputFilter():
                 chan.SetData(data_count[self._nkey])
         # don't fit the SR if this is a BG only fit
-        if not self.signal_point:
+        if not self._signal_point:
             self._non_fit_regions.add(sr)
         # ACHTUNG: again, not sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
         self._add_mc_to_channel(chan, sr)
-        self.channels[sr] = chan
+        self._channels[sr] = chan
 
     def set_signal(self, signal_name):
-        if self.signal_point:
+        if self._signal_point:
             raise ValueError('tried to overwrite {} with {}'.format(
-                    self.signal_point, signal_name))
-        if self.channels:
+                    self._signal_point, signal_name))
+        if self._channels:
             raise ValueError("can't set signal point after adding regions")
-        self.signal_point = signal_name
+        self._signal_point = signal_name
         self.meas.SetPOI("mu_Sig")
 
     # ____________________________________________________________________
@@ -187,29 +191,29 @@ class Workspace(object):
 
     def _add_signal_to_channel(self, chan, region):
         """should be called by _add_mc_to_channel"""
-        if self.signal_point:
+        if self._signal_point:
             # get yield / stat error in SR
             yields = self._yields
 
             # signal points don't have to be saved in the yaml file,
             # the fit works fine without them.
-            if not self.signal_point in yields[region]:
+            if not self._signal_point in yields[region]:
                 return
 
             # If we're this far, we can create the signal sample
-            sname = '_'.join([self.signal_point,region])
+            sname = '_'.join([self._signal_point,region])
             signal = self.hf.Sample(sname)
 
             # The signal yield is a list with two entries (yield, stat_error)
             # I've kept the _nkey, and _errkey variables so it's easy to
             # change over to a dictionary. For now they are list indices.
-            sig_yield = yields[region][self.signal_point]
+            sig_yield = yields[region][self._signal_point]
             signal_count = sig_yield[self._nkey]
             _set_value(signal, signal_count, sig_yield[self._errkey])
 
             # add the signal to the region sum if we're doing injection
-            if self.inject:
-                self.region_sums[region] += signal_count
+            if self._inject:
+                self._region_sums[region] += signal_count
 
             # ACHTUNG: I _think_ this has to be called to make sure
             # the statistical error is used in the fit. I assume we should
@@ -226,7 +230,7 @@ class Workspace(object):
             signal.AddNormFactor('mu_Sig',1,0,2)
 
             # --- add systematics ---
-            syst_dict = self._systematics[region][self.signal_point]
+            syst_dict = self._systematics[region][self._signal_point]
             for syst, var in syst_dict.iteritems():
                 signal.AddOverallSys(syst, *var)
 
@@ -236,7 +240,7 @@ class Workspace(object):
         base_vals = self._yields[region].get(bg, [0.0, 0.0])
         bg_n = base_vals[self._nkey]
         # region sums are needed for blinded results
-        self.region_sums[region] += bg_n
+        self._region_sums[region] += bg_n
         sname = '_'.join([region,bg])
         background = self.hf.Sample(sname)
         _set_value(background, bg_n, base_vals[self._errkey])
@@ -264,18 +268,18 @@ class Workspace(object):
         The workspace is named according to the signal point. If there's
         no signal point, it's called 'background'
         """
-        if self.signal_point:
-            return self.signal_point
+        if self._signal_point:
+            return self._signal_point
         return 'background'
 
     def _build_measurement(self):
         """
         Fill the pseudodata regions to complete measurement.
         """
-        for chan_name, channel in self.channels.iteritems():
+        for chan_name, channel in self._channels.iteritems():
             # add the pseudodata regions
-            if chan_name in self.pseudodata_regions:
-                pseudo_count = self.region_sums[chan_name]
+            if chan_name in self._pseudodata_regions:
+                pseudo_count = self._region_sums[chan_name]
                 if chan_name in self._non_fit_regions:
                     pseudo_count = 0.0
                 with OutputFilter():
@@ -284,10 +288,10 @@ class Workspace(object):
 
         # some safety checks
         n_free_pars = len(self.backgrounds) - len(self.fixed_backgrounds)
-        if self.signal_point:
+        if self._signal_point:
             n_free_pars += 1
 
-        n_chan = len(self.channels) - len(self._non_fit_regions)
+        n_chan = len(self._channels) - len(self._non_fit_regions)
         if n_free_pars > n_chan:
             err_tmp = (
                 'underrestrained fit: '
@@ -297,7 +301,7 @@ class Workspace(object):
     def save_workspace(self, results_dir, verbose=False):
         # if we haven't set a signal point, need to set a dummy
         # (otherwise something will crash)
-        if not self.signal_point:
+        if not self._signal_point:
             self.meas.SetPOI("mu_Sig")
         if not isdir(results_dir):
             os.mkdir(results_dir)
@@ -375,13 +379,13 @@ class Workspace(object):
         fc.m_inputWorkspaceFileName = ws_path
         # HistFitter name convention seems to be that the background only fit
         # is called "Bkg" or "" (empty string).
-        fc.m_signalSampleName = self.signal_point or ''
+        fc.m_signalSampleName = self._signal_point or ''
 
         # HistFitter doesn't seem to distinguish between background
         # and signal channels. The only possible difference is a
         # commented out line that sets 'lumiConst' to true if there
         # are no signal channels. May be worth looking into...
-        for chan in self.channels:
+        for chan in self._channels:
             if chan not in self._non_fit_regions:
                 fc.m_bkgConstrainChannels.push_back(chan)
             # fc.m_signalChannels.push_back(chan)

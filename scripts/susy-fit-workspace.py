@@ -7,6 +7,8 @@ _config_file = (
     'file listing signal / control regions, will be generated if missing')
 _after_fit = "produce and 'afterFit' files"
 _upper_limits = "produce histfitter 'upper limit' stuff"
+_up_help = 'do upward variant of signal theory'
+_down_help = 'do downward variant of signal theory'
 
 import argparse, re, sys, os
 from os.path import isfile, isdir, join
@@ -18,6 +20,7 @@ from scharmfit.workspace import get_signal_points_and_backgrounds
 
 def run():
     d = 'default: %(default)s'
+    sigop = dict(action='store_const', dest='signal_systematic')
     parser = argparse.ArgumentParser(description=__doc__)
 
     # add input options
@@ -28,9 +31,11 @@ def run():
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
     parser.add_argument('-b', '--background-only', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
-    data_version = parser.add_mutually_exclusive_group()
-    data_version.add_argument('--blind', action='store_true', dest='blind')
-    data_version.add_argument('--injection', action='store_true')
+    fit_version = parser.add_mutually_exclusive_group()
+    fit_version.add_argument('--blind', action='store_true', dest='blind')
+    fit_version.add_argument('--injection', action='store_true')
+    fit_version.add_argument('--up', const='up', help=_up_help, **sigop)
+    fit_version.add_argument('--down', const='down', help=_down_help, **sigop)
     hf_action = parser.add_mutually_exclusive_group()
     hf_action.add_argument('-f', '--after-fit', action='store_true',
                            help=_after_fit)
@@ -58,14 +63,17 @@ def _multispaces(config):
     if config.background_only:
         signal_points = []
 
-    run_histfitter = config.after_fit or config.upper_limit
-    misc_config = dict(
-        out_dir=config.out_dir,
-        debug=config.debug, do_hf=run_histfitter, verbose=config.verbose,
-        blind=config.blind, injection=config.injection)
 
-    # loop ovar all signal points and fit configurations. Note that
-    # memory leaks in HistFactory make this difficult.
+    # setup fitting options from command line
+    run_histfitter = config.after_fit or config.upper_limit
+    misc_config = dict(do_hf=run_histfitter)
+    # most options are passed through unchanged
+    pass_options = [
+        'out_dir', 'debug', 'verbose', 'blind', 'injection',
+        'signal_systematic']
+    misc_config.update({x:getattr(config, x) for x in pass_options})
+
+    # loop ovar all signal points and fit configurations.
     for cfg_name, fit_cfg in fit_configs.iteritems():
         print 'booking background with config {}'.format(cfg_name)
         cfg = cfg_name, fit_cfg
@@ -89,10 +97,7 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     # have been filed. For now just using output filters.
     # ROOT.gDirectory.GetList().Delete() # maybe fix?
 
-    fit = Workspace(yields, fit_config)
-    fit.blinded = misc_config['blind']
-    fit.inject = misc_config['injection']
-    fit.debug = misc_config['debug']
+    fit = Workspace(yields, fit_config, misc_config)
     if signal_point:
         fit.set_signal(signal_point)
     for sr in fit_config['signal_regions']:

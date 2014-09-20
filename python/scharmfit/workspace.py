@@ -1,7 +1,7 @@
 """Module containing fitting machinery"""
 
 from scharmfit.utils import OutputFilter
-import os, re, glob
+import os, re, glob, math
 from os.path import isdir, join, basename
 from collections import defaultdict, Counter
 import warnings
@@ -224,8 +224,8 @@ class Workspace(object):
         # change over to a dictionary. For now they are list indices.
         sig_yield = yields[region][self._signal_point]
         sig_syst = self._get_rel_sigsyst(region)
-        signal_count = sig_yield[self._nkey] * syst
-        _set_value(signal, signal_count, sig_yield[self._errkey] * syst)
+        signal_count = sig_yield[self._nkey] * sig_syst
+        _set_value(signal, signal_count, sig_yield[self._errkey] * sig_syst)
 
         if self._inject:
             self._region_sums[region] += signal_count

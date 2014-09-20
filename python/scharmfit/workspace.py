@@ -139,8 +139,7 @@ class Workspace(object):
         siglist = fit_config.get('signal_systematics',[])
         updown = misc_config['signal_systematic']
         self._sigsysts = _get_signal_systematics(rel_syst, siglist, updown)
-        outnames = {'up': self.up1s, 'down': self.down1s}
-        self._sigsyst_name = outnames.get(updown) or self.nominal
+        self._sigsyst_sign = {'up':1, 'down':-1}.get(updown, 0)
 
     # ____________________________________________________________________
     # top level methods to set control / signal regions
@@ -205,6 +204,13 @@ class Workspace(object):
         for bg in self._backgrounds:
             self._add_background_to_channel(chan, region, bg)
 
+    def _get_rel_sigsyst(self, region):
+        """return the relative systematic on the signal sample"""
+        if self._sigsyst_sign:
+            sys2 = self._sigsysts[region,self._signal_point]
+            return 1 + math.copysign(sys2**0.5, self._sigsyst_sign)
+        return 1
+
     def _add_signal_to_channel(self, chan, region):
         """should be called by _add_mc_to_channel"""
         # get yield / stat error in SR
@@ -217,7 +223,7 @@ class Workspace(object):
         # I've kept the _nkey, and _errkey variables so it's easy to
         # change over to a dictionary. For now they are list indices.
         sig_yield = yields[region][self._signal_point]
-        syst = self._sigsysts.get((region,self._signal_point), 1.0)
+        sig_syst = self._get_rel_sigsyst(region)
         signal_count = sig_yield[self._nkey] * syst
         _set_value(signal, signal_count, sig_yield[self._errkey] * syst)
 
@@ -274,7 +280,10 @@ class Workspace(object):
         no signal point, it's called 'background'
         """
         prefix = self._signal_point or 'background'
-        return self.name_tpl.format(pfx=prefix, sigdir=self._sigsyst_name)
+        outnames = {1: self.up1s, -1: self.down1s, 0: self.nominal}
+        sigsyst_name = outnames[self._sigsyst_sign]
+
+        return self.name_tpl.format(pfx=prefix, sigdir=sigsyst_name)
 
     def _build_measurement(self):
         """
@@ -425,7 +434,7 @@ class Workspace(object):
 
 def _get_signal_systematics(rel_systs, syst_list, direction):
     """
-    Return a {(region, process): multiplier, ...} dict.
+    Return a {(region, process): sum_square, ...} dict.
     The `direction` should be 'up','down', or None.
     """
     out_dict = {}
@@ -436,10 +445,14 @@ def _get_signal_systematics(rel_systs, syst_list, direction):
     for syst in syst_list:
         for region, procdict in rel_systs[syst].iteritems():
             for proc, downup in procdict.iteritems():
-                # multiply the signal by the appropriate variation
-                mult = downup[idx]
+                # multiply the signal by the appropriate variation.
+                # we're assuming the systematics aren't correlated
+                # (and using linear error prop)
+                delta = downup[idx] - 1
                 out_key = region, proc
-                out_dict[out_key] = out_dict.get(out_key, 1.0) * mult
+                sum_sq = out_dict.get(out_key, 0.0)
+                sum_sq += delta**2
+                out_dict[out_key] = sum_sq
     return out_dict
 
 def _get_relative_from_abs_systematics(base_yields, systematic_yields):

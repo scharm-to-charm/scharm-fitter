@@ -3,11 +3,21 @@
 Fitter for scharm to charm search. Takes a directory of
 workspaces as an input.
 """
+
 import yaml
 from os.path import join, relpath, basename
 import argparse, re, sys, glob
 from scharmfit.calculators import UpperLimitCalc, CLsCalc
 from os import walk
+
+# __________________________________________________________________________
+# constants
+
+# only fit files that start with this
+_prefit_prefix = 'scharm'
+
+# __________________________________________________________________________
+# run routine
 
 def run():
     d = '(default: %(default)s)'
@@ -32,9 +42,7 @@ def run():
 def _is_prefit(workspace):
     if workspace.endswith('afterFit.root'):
         return False
-    if basename(workspace).startswith('background'):
-        return False
-    return True
+    return basename(workspace).startswith(_prefit_prefix)
 
 def _make_calc_file(config):
     cfg_dict = {}

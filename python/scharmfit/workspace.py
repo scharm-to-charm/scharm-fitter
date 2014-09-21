@@ -39,13 +39,17 @@ class Workspace(object):
     Organizes the building of workspaces, mainly by providing functions to
     transfer from the input yaml file to a RooFit workspace.
     """
-    # -- various definitions (for histfitter and input textfile schema)
+    # -- various definitions (for histfitter and input textfile schema) --
     # histfitter
     meas_name = 'meas'
+
+    # out file names
     name_tpl = '{pfx}_{sigdir}.root'
     nominal = 'nominal'
     up1s = 'up1sigma'
     down1s = 'down1sigma'
+    sr_plus_cr_fit_prefix = 'srcr'
+    cr_only_fit_prefix = 'background'
 
     # input file schema
     baseline_yields_key = _baseline_yields_key
@@ -86,6 +90,7 @@ class Workspace(object):
         self.meas.SetLumiRelErr(lumiError)
 
         self._signal_point = None
+        self._fit_signal_region = False
         # for blinding / pseudodata: `pseudodata` just means the sume of SM
         # backgrounds are used.
         self._region_sums = Counter()
@@ -164,7 +169,7 @@ class Workspace(object):
         self.add_cr(vr)
         self._non_fit_regions.add(vr)
 
-    def add_sr(self, sr):
+    def add_sr(self, sr, fit=True):
         chan = self.hf.Channel(sr)
         if self._blinded or self._inject:
             self._pseudodata_regions.add(sr)
@@ -174,7 +179,9 @@ class Workspace(object):
             with OutputFilter():
                 chan.SetData(data_count[self._nkey])
         # don't fit the SR if this is a BG only fit
-        if not self._signal_point:
+        if fit:
+            self._fit_signal_region = True
+        else:
             self._non_fit_regions.add(sr)
         # ACHTUNG: again, not sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
@@ -279,7 +286,13 @@ class Workspace(object):
         The workspace is named according to the signal point. If there's
         no signal point, it's called 'background'
         """
-        prefix = self._signal_point or 'background'
+        if self._signal_point:
+            prefix = self._signal_point
+        elif self._fit_signal_region:
+            prefix = self.sr_plus_cr_fit_prefix
+        else:
+            prefix = self.cr_only_fit_prefix
+
         outnames = {1: self.up1s, -1: self.down1s, 0: self.nominal}
         sigsyst_name = outnames[self._sigsyst_sign]
 

@@ -77,7 +77,9 @@ def _multispaces(config):
     for cfg_name, fit_cfg in fit_configs.iteritems():
         print 'booking background with config {}'.format(cfg_name)
         cfg = cfg_name, fit_cfg
+        # blank signal point means no point, 'CR_ONLY' means don't use SR
         _book_signal_point(yields, '', cfg, misc_config)
+        _book_signal_point(yields, 'CR_ONLY', cfg, misc_config)
         for signal_point in signal_points:
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)
@@ -90,18 +92,23 @@ def _multispaces(config):
         do_upper_limits(verbose=config.verbose, prefix='scharm')
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
-    """book the workspace for one signal point"""
+    """
+    Book the workspace for one signal point. If the point is ''
+    """
     cfg_name, fit_config = fit_configuration
     import ROOT
-    # TODO: this leaks memory like crazy, not sure why but bug reports
-    # have been filed. For now just using output filters.
-    # ROOT.gDirectory.GetList().Delete() # maybe fix?
-
+    # TODO: this leaks memory like crazy, known HistFactory bug
     fit = Workspace(yields, fit_config, misc_config)
+
+    fit_sr = True
+    if signal_point == 'CR_ONLY':
+        fit_sr = False
+        signal_point = ''
+
     if signal_point:
         fit.set_signal(signal_point)
     for sr in fit_config['signal_regions']:
-        fit.add_sr(sr)
+        fit.add_sr(sr, fit=fit_sr)
     for cr in fit_config['control_regions']:
         fit.add_cr(cr)
     # we can't do hypothisis testing with validation regions, so we only

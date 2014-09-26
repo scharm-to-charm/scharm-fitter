@@ -34,6 +34,10 @@ _baseline_yields_key = 'nominal_yields'
 _yield_systematics_key = 'yield_systematics'
 _relative_systematics_key = 'relative_systematics'
 
+# Enum-like value to indicate discovery fit, also used to name that
+# workspace
+DISCOVERY = 'discovery'
+
 class Workspace(object):
     """
     Organizes the building of workspaces, mainly by providing functions to
@@ -185,7 +189,7 @@ class Workspace(object):
             self._non_fit_regions.add(sr)
         # ACHTUNG: again, not sure what this does
         # chan.SetStatErrorConfig(0.05, "Gaussian")
-        self._add_mc_to_channel(chan, sr)
+        self._add_mc_to_channel(chan, sr, is_sr=True)
         self._channels[sr] = chan
 
     def set_signal(self, signal_name):
@@ -200,12 +204,22 @@ class Workspace(object):
     # ____________________________________________________________________
     # functions to add samples to the channel
 
-    def _add_mc_to_channel(self, chan, region):
+    def _add_mc_to_channel(self, chan, region, is_sr=False):
         """
         Adds the signal mc and the backgrounds to this channel.
         """
         sp = self._signal_point
-        if sp and sp in self._yields[region]:
+        # the 'discovery fit' uses a one signal event in the signal region
+        # with no systematics applied
+        if sp == DISCOVERY:
+            if is_sr:
+                sname = '_'.join([self._signal_point,region])
+                signal = self.hf.Sample(sname)
+                _set_value(signal, 1.0, 0.0)
+                signal.SetNormalizeByTheory(True)
+                signal.AddNormFactor('mu_Sig',1,0,2)
+                chan.AddSample(signal)
+        elif sp and sp in self._yields[region]:
             self._add_signal_to_channel(chan, region)
 
         for bg in self._backgrounds:

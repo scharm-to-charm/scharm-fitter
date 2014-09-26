@@ -15,7 +15,7 @@ from os.path import isfile, isdir, join
 from itertools import chain
 import yaml
 import warnings
-from scharmfit.workspace import Workspace, do_upper_limits
+from scharmfit.workspace import Workspace, do_upper_limits, DISCOVERY
 from scharmfit.workspace import get_signal_points_and_backgrounds
 
 def run():
@@ -63,7 +63,6 @@ def _multispaces(config):
     if config.background_only:
         signal_points = []
 
-
     # setup fitting options from command line
     run_histfitter = config.after_fit or config.upper_limit
     misc_config = dict(do_hf=run_histfitter)
@@ -77,9 +76,12 @@ def _multispaces(config):
     for cfg_name, fit_cfg in fit_configs.iteritems():
         print 'booking background with config {}'.format(cfg_name)
         cfg = cfg_name, fit_cfg
-        # blank signal point means no point, 'CR_ONLY' means don't use SR
+        # blank signal point means no point (but use SR in fit)
         _book_signal_point(yields, '', cfg, misc_config)
+        # 'CR_ONLY' means don't use SR in fit
         _book_signal_point(yields, 'CR_ONLY', cfg, misc_config)
+        # DISCOVERY means set signal to 1 in SR only
+        _book_signal_point(yields, DISCOVERY, cfg, misc_config)
         for signal_point in signal_points:
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)

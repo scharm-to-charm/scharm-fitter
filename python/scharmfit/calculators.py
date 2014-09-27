@@ -8,12 +8,32 @@ from os.path import isfile
 
 class UpperLimitCalc(object):
     """Calculates the upper limit min, mean, and max values"""
-    def __init__(self):
-        """
-        for now has no init... In the future we may set things like
-        the fit method (use toys, asymptotic, CLs vs whatever...)
-        """
-        pass
+    def __init__(self, n_toys=0, do_prefit=False):
+        self._n_toys = n_toys
+        # use asymptotic (calc type 2) if we're not using toys
+        self._calc_type = 0 if n_toys else 2
+        self._do_prefit = do_prefit
+
+    def _prefit_ul(self, workspace):
+        Util.SetInterpolationCode(workspace,4)
+
+        with OutputFilter(accept_strings={}):
+            inverted = RooStats.DoHypoTestInversion(
+                workspace,
+                1,
+                2,              # use asymptotic
+                3,              # test type (3 is atlas standard)
+                True,           # use CLs
+                20,             # number of points
+                0,              # POI min
+                -1,             # POI max (why -1?)
+                )
+
+        try:
+            return inverted.GetExpectedUpperLimit(2)
+        except ReferenceError:
+            return -1
+
     def lim_range(self, workspace_name):
         """
         returns a 3-tuple of limits
@@ -27,27 +47,30 @@ class UpperLimitCalc(object):
         workspace = Util.GetWorkspaceFromFile(workspace_name, 'combined')
 
         Util.SetInterpolationCode(workspace,4)
+
+        # using -1 as the poi max means auto range (I think)
+        poi_max = self._prefit_ul(workspace) if self._do_prefit else -1
+
         # NOTE: We're completely silencing the fitter. Add an empty string
         # to the accept_strings to get all output.
         with OutputFilter(accept_strings={}):
             inverted = RooStats.DoHypoTestInversion(
                 workspace,
-                1,                      # n_toys
-                2,                      # asymtotic calculator
+                self._n_toys,
+                self._calc_type,
                 3,                      # test type (3 is atlas standard)
                 True,                   # use CLs
                 20,                     # number of points
                 0,                      # POI min
-                -1,                     # POI max (why -1?)
+                poi_max,
                 )
 
-        # one might think that inverted.GetExpectedLowerLimit(-1)
-        # would do something different from GetExpectedUpperLimit(-1).
-        # This doesn't seem to be true, from what I can tell both
-        # functions do exactly the same thing.
-        mean_limit = inverted.GetExpectedUpperLimit(0)
-        lower_limit = inverted.GetExpectedUpperLimit(-1)
-        upper_limit = inverted.GetExpectedUpperLimit(1)
+        try:
+            mean_limit = inverted.GetExpectedUpperLimit(0)
+            lower_limit = inverted.GetExpectedUpperLimit(-1)
+            upper_limit = inverted.GetExpectedUpperLimit(1)
+        except ReferenceError:
+            return -1, -1, -1
         return lower_limit, mean_limit, upper_limit
 
 class CLsCalc(object):

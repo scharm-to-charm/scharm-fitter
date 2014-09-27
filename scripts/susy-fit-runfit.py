@@ -39,20 +39,33 @@ def run():
     # run the fits
     _make_calc_file(config)
 
+# _________________________________________________________________________
+# file filters
+
 def _is_prefit(workspace):
     if workspace.endswith('afterFit.root'):
         return False
     return basename(workspace).startswith(_prefit_prefix)
 
+def _is_prefit_nominal(workspace):
+    if not _is_prefit(workspace):
+        return False
+    return workspace.endswith('nominal.root')
+
+# __________________________________________________________________________
+# main routine
+
 def _make_calc_file(config):
     cfg_dict = {}
     # choose the calculator
     calculate = {'ul':_get_ul, 'cls':_get_cls}[config.calc_type]
+    # ...and the filter
+    filt = {'ul': _is_prefit_nominal, 'cls': _is_prefit}[config.calc_type]
 
     # loop over all the workspaces, fit them all
     for base, dirs, files in walk(config.workspace_dir):
         if not dirs and files:
-            workspaces = filter(_is_prefit,glob.glob(join(base, '*.root')))
+            workspaces = filter(filt,glob.glob(join(base, '*.root')))
             # the configuration name (key under which the fit result
             # is saved) is the path from the directory we run on to
             # the directory where the workspaces are found.
@@ -92,9 +105,7 @@ def _get_ul(workspace_name):
     ul_calc = UpperLimitCalc()
     lower_limit, mean_limit, upper_limit = ul_calc.lim_range(workspace_name)
     ul_dict = {
-        'upper': upper_limit,
-        'lower': lower_limit,
-        'mean': mean_limit,
+        'ul': mean_limit,
         }
     return ul_dict
 

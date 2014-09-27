@@ -1,5 +1,5 @@
-// vim: ts=4:sw=4
 /* -*- mode: c++ -*- */
+// vim: ts=4:sw=4
 // Standard tutorial macro for performing an inverted  hypothesis test 
 //
 // This macro will perform a scan of tehe p-values for computing the limit

@@ -531,7 +531,8 @@ void RooStats::AnalyzeHypoTestInverterResult(RooStats::HypoTestInverterResult* r
     //////////////////////////////////////////////////////////////////////////////////////////
 
     HypoTestTool calc;
-
+    calc.SetParameter("ResultFileName", outfilePrefix);
+    calc.SetParameter("WriteResult", false);
     // set parameters
     /*
        calc.SetParameter("PlotHypoTestResult", plotHypoTestResult);

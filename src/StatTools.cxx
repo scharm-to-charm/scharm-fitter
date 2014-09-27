@@ -577,7 +577,7 @@ RooStats::HypoTestInverterResult* RooStats::MakeUpperLimitPlot(const char* filep
 
     /// store ul as nice plot ..
     if ( hypo!=0 ) { 
-        RooStats::AnalyzeHypoTestInverterResult( hypo,calculatorType,testStatType,useCLs,npoints,fileprefix,".eps") ;
+        RooStats::AnalyzeHypoTestInverterResult( hypo,calculatorType,testStatType,useCLs,npoints,fileprefix,".pdf") ;
     }
 
     return hypo;

@@ -68,7 +68,8 @@ def get_corr_matrix( filename, resultName="RooExpandedFitResult_afterFit"):
     paramenters = result.floatParsFinal()
     n_par = paramenters.getSize()
     all_par_nm = [paramenters[iii].GetName() for iii in xrange(n_par)]
-    par_names = [x for x in all_par_nm if not x.startswith('gamma_stat_')]
+    par_names = all_par_nm
+    # par_names = [x for x in all_par_nm if not x.startswith('gamma_stat_')]
     matrix_list = []
     for par1 in par_names:
         matrix_list.append([])

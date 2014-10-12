@@ -90,8 +90,9 @@ def _multispaces(config):
     # relies on HistFitter's global variables, has to be run after
     # booking a bunch of workspaces.
     if config.upper_limit:
-        print 'calculating upper limits (may take a while)'
-        do_upper_limits(verbose=config.verbose, prefix='scharm')
+        pfx = config.signal_systematic or 'nominal'
+        print 'calculating {} upper limits (may take a while)'.format(pfx)
+        do_upper_limits(verbose=config.verbose, prefix=pfx)
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     """

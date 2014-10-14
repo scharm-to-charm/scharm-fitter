@@ -11,7 +11,7 @@ _up_help = 'do upward variant of signal theory'
 _down_help = 'do downward variant of signal theory'
 
 import argparse, re, sys, os
-from os.path import isfile, isdir, join
+from os.path import isfile, isdir, join, dirname
 from itertools import chain
 import yaml
 import warnings
@@ -91,8 +91,9 @@ def _multispaces(config):
     # booking a bunch of workspaces.
     if config.upper_limit:
         pfx = config.signal_systematic or 'nominal'
-        print 'calculating {} upper limits (may take a while)'.format(pfx)
-        do_upper_limits(verbose=config.verbose, prefix=pfx)
+        dirpfx = join(dirname(config.fit_config), pfx)
+        print 'calculating {} upper limits (may take a while)'.format(dirpfx)
+        do_upper_limits(verbose=config.verbose, prefix=dirpfx)
 
 def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
     """

@@ -217,7 +217,7 @@ class Workspace(object):
                 signal = self.hf.Sample(sname)
                 _set_value(signal, 1.0, 0.0)
                 signal.SetNormalizeByTheory(True)
-                signal.AddNormFactor('mu_Sig',1,0,2)
+                signal.AddNormFactor('mu_Sig',1,0,100)
                 chan.AddSample(signal)
         elif sp and sp in self._yields[region]:
             self._add_signal_to_channel(chan, region)

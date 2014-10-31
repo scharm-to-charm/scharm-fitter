@@ -9,6 +9,7 @@ _after_fit = "produce and 'afterFit' files"
 _upper_limits = "produce histfitter 'upper limit' stuff"
 _up_help = 'do upward variant of signal theory'
 _down_help = 'do downward variant of signal theory'
+_sub_help = 'only use subset of fit configurations'
 
 import argparse, re, sys, os
 from os.path import isfile, isdir, join, dirname
@@ -29,6 +30,7 @@ def run():
     parser.add_argument(
         '-c','--fit-config', required=True, help=_config_file)
     parser.add_argument('-o', '--out-dir', default='workspaces', help=d)
+    parser.add_argument('-s', '--subset', help=_sub_help, nargs='+')
     parser.add_argument('-b', '--background-only', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
     fit_version = parser.add_mutually_exclusive_group()
@@ -53,7 +55,7 @@ def _multispaces(config):
         yields = yaml.load(yields_yml)
 
     # get / generate the fit configuration
-    fit_configs = _get_config(config.fit_config, yields)
+    fit_configs = _get_config(config.fit_config, yields, config.subset)
     if not fit_configs:
         print 'wrote {}, quitting...'.format(config.fit_config)
         return
@@ -138,7 +140,7 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
 
 _nom_yields_key = 'nominal_yields'
 _syst_yields_key = 'yield_systematics'
-def _get_config(cfg_name, yields_dict):
+def _get_config(cfg_name, yields_dict, subset=None):
     """gets / generates the fit config file"""
 
     all_syst = _all_syst_from_yields(yields_dict)
@@ -161,6 +163,8 @@ def _get_config(cfg_name, yields_dict):
             for opt in cfg:
                 if opt not in def_config:
                     raise ValueError('invalid config option: {}'.format(opt))
+        if subset:
+            fit_configs = {x:fit_configs[x] for x in subset}
     else:
         fit_configs = {'default': def_config}
         with open(cfg_name, 'w') as yml:

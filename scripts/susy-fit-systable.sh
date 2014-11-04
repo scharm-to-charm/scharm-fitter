@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -eu
+
 OUTDIR=bg_fit
 REGIONS=signal_mct150,cr_w,cr_z,cr_t
 SAMPLES=Wjets,Zjets,top,other

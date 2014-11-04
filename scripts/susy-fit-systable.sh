@@ -24,6 +24,7 @@ Options:
 EOF
 }
 
+MKTEST=''
 while (( $# ))
 do
     case $1 in
@@ -34,7 +35,7 @@ do
 	-r) shift; REGIONS=$1; shift;;
 	-s) shift; SAMPLES=$1; shift;;
 	*)
-	    if [[ -n $input ]]
+	    if [[ -n ${input:=''} ]]
 		then
 		usage
 		echo 'too many inputs'
@@ -46,7 +47,7 @@ do
     esac
 done
 
-if [[ -z $input ]]
+if [[ -z ${input:=''} ]]
 then
     usage
     exit 1

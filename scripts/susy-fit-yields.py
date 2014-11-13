@@ -30,11 +30,34 @@ def _get_checked(w, name):
 
 def _unshitify(numbers):
     regions = numbers['names']
-    proc_prefix = 'Fitted_err_'
+    nobs = numbers['nobs']
+    fit_err     = 'Fitted_err_'
+    fit_evt     = 'Fitted_events_'
+    fit_tot     = 'TOTAL_FITTED_bkg_events'
+    fit_tot_err = 'TOTAL_FITTED_bkg_events_err'
+    exp_err     = 'MC_exp_err_'
+    exp_evt     = 'MC_exp_events_'
+    exp_tot     = 'TOTAL_MC_EXP_BKG_events'
+    exp_tot_err = 'TOTAL_MC_EXP_BKG_err'
     procs = []
+    out = {}
     for key in numbers:
-        if key.startswith(proc_prefix):
-            procs.append(key[len(proc_prefix):])
+        if key.startswith(fit_err):
+            procs.append(key[len(fit_err):])
+    for reg_n, regname in enumerate(regions):
+        region = out.setdefault(regname, {})
+        for pn in procs:
+            process = region.setdefault(pn, {})
+            process['fit'] = [
+                numbers[x + pn][reg_n] for x in [fit_evt, fit_err]]
+            process['exp'] = [
+                numbers[x + pn][reg_n] for x in [exp_evt, exp_err]]
+        region['fit'] = [
+            numbers[x][reg_n] for x in [fit_tot, fit_tot_err]]
+        region['exp'] = [
+            numbers[x][reg_n] for x in [exp_tot, exp_tot_err]]
+    return out
+
 
 def latexfitresults(
     filename, sampleList, exactRegionNames=False, dataname='obsData',
@@ -247,5 +270,5 @@ if __name__ == "__main__":
 
     with OutputFilter():
         m3 = latexfitresults(args.workspace,args.samples)
-    print yaml.dump(m3)
+    print yaml.dump(_unshitify(m3))
 

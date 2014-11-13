@@ -56,6 +56,7 @@ def _unshitify(numbers):
             numbers[x][reg_n] for x in [fit_tot, fit_tot_err]]
         region['exp'] = [
             numbers[x][reg_n] for x in [exp_tot, exp_tot_err]]
+        region['obs'] = int(nobs[reg_n])
     return out
 
 

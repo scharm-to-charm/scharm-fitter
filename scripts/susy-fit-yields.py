@@ -61,7 +61,7 @@ def _unshitify(numbers):
 
 
 def latexfitresults(
-    filename, sampleList, exactRegionNames=False, dataname='obsData',
+    filename, sampleList, exactRegionNames=True, dataname='obsData',
     showSum=False, doAsym=True):
     workspacename = 'w'
     w = Util.GetWorkspaceFromFile(filename,'w')

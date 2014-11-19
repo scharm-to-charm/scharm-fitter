@@ -13,7 +13,6 @@ def _get_fit_pars(fit_parameters):
         return yaml.load(pars)
 
 _norm_factor_head = r"""
-\begin{center}
 \begin{tabular}{|l|c|}
 \hline
 {\bf Normalisation factor}  & Value \\
@@ -26,7 +25,6 @@ $W$ + jets & ${w:.2f} \pm {ew:.2f}$ \\
 \hline"""
 _norm_factor_tail = r"""
 \end{tabular}
-\end{center}
 """
 
 def _get_mu_table(pars):

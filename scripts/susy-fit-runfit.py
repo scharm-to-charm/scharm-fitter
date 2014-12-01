@@ -103,9 +103,9 @@ def _flatten_cls_dict(cls_dict):
 
 def _get_ul(workspace_name):
     ul_calc = UpperLimitCalc()
-    lower_limit, mean_limit, upper_limit = ul_calc.lim_range(workspace_name)
+    upper_limit = ul_calc.observed_upper_limit(workspace_name)
     ul_dict = {
-        'ul': mean_limit,
+        'ul': upper_limit,
         }
     return ul_dict
 

@@ -73,6 +73,39 @@ class UpperLimitCalc(object):
             return -1, -1, -1
         return lower_limit, mean_limit, upper_limit
 
+    def observed_upper_limit(self, workspace_name):
+        """
+        returns a 3-tuple of limits
+        """
+        from scharmfit import utils
+        utils.load_susyfit()
+        from ROOT import Util
+        from ROOT import RooStats
+        if not isfile(workspace_name):
+            raise OSError("can't find workspace {}".format(workspace_name))
+        workspace = Util.GetWorkspaceFromFile(workspace_name, 'combined')
+
+        Util.SetInterpolationCode(workspace,4)
+
+        # NOTE: We're completely silencing the fitter. Add an empty string
+        # to the accept_strings to get all output.
+        with OutputFilter(accept_strings={}):
+            inverted = RooStats.DoHypoTestInversion(
+                workspace,
+                self._n_toys,
+                self._calc_type,
+                3,                      # test type (3 is atlas standard)
+                True,                   # use CLs
+                20,                     # number of points
+                0,                      # POI min
+                -1,
+                )
+
+        try:
+            return inverted.UpperLimit()
+        except ReferenceError:
+            return -1
+
 class CLsCalc(object):
     """Calculates the CLs"""
     def __init__(self):

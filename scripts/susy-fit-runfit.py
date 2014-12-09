@@ -110,7 +110,7 @@ def _get_ul(workspace_name):
     return ul_dict
 
 def _get_cls(workspace_name):
-    calc = CLsCalc(do_prefit=True)
+    calc = CLsCalc()
     return calc.calculate_cls(workspace_name)
 
 if __name__ == '__main__':

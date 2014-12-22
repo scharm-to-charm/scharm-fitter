@@ -37,11 +37,19 @@ your `PATH`, the following command should produce some workspaces:
 
 ```bash
 cd example_data
-susy-fit-workspace.py inputs.yml -c configuration.yml -f
+susy-fit-workspace.py yields.yml -c configuration.yml -f
 ```
 
-Adding the `-f` flag will produce the `_afterFit.root`, `-l` will
-produce `_upperlimits.root` files.
+Adding the `-f` flag will produce the `_afterFit.root`.
+
+To fit the resulting workspaces, you can run the following:
+
+```bash
+susy-fit-runfit.py workspaces
+```
+
+This will produce a file called `cls.yml` which contains the resulting
+cls values for each point.
 
 ### Input / Output format
 
@@ -77,14 +85,10 @@ identically (except when the signal region is blinded and the MC SM sum is used 
 
 Some of the `SYSTEMATIC` categories under `yield_systematics` will be
 treated in special ways:
- - The b-tagging systematics (names starting with `b`, `c`, `u`, or
-   `t` and ending with `up` or `down`, i.e. `bup`, `udown` etc...)
-   can be added in quadrature before fitting. (will print warnings
-   if all these backgrounds aren't found).
- - Other names that end in `up` or `down` will be paired to give an
+ - Names that end in `up` or `down` will be paired to give an
    asymmetric uncertainty.
- - Any other (unpaired) systematics will be entered as a symmetric uncertainty
-   centered on the nominal value.
+ - Any other (unpaired) systematics will be entered as a symmetric
+   uncertainty centered on the nominal value.
 
 Signal points must be of the form "`scharm-` scharm mass `-` lsp
 mass".  The masses can be arbitrary integers. Data points should be
@@ -106,17 +110,15 @@ creation routine. This is formatted as:
 CONFIG_NAME:
   control_regions: [REG1, REG2, ...]
   signal_regions: [SIG_REGION]
-  combine_tagging: TRUE_OR_FALSE
   fixed_backgrounds: [BG1, BG2, ...]
   systematics: [SYS1, SYS2, ...]
+  signal_systematics: [SYS1, SYS2, ...]
 CONFIG2_NAME:
   ...
 ```
 
 This file will be created (although not necessarily with sensible
-regions) if it doesn't exist. The option `combine_tagging` tells the
-fitter whether it should add the flavor tagging systematics in
-quadrature.
+regions) if it doesn't exist.
 
 ### Outstanding issues:
 
@@ -129,6 +131,3 @@ quadrature.
    nominal value shouldn't be use in the fit, but it should be
    checked. For now these errors are being filtered from the output
    stream.
- - Workspace creation produces about 5 files, only one of which we
-   seem to need. Right now I'm deleting the others, should make sure
-   this is safe.

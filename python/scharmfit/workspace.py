@@ -1,4 +1,7 @@
-"""Module containing fitting machinery"""
+"""
+Module containing workspace setup routines. The actual fitting and
+statistical analyiss stuff is done elsewhere.
+"""
 
 from scharmfit.utils import OutputFilter
 import os, re, glob, math
@@ -131,10 +134,8 @@ class Workspace(object):
         # {region: {process:{systematic: (down, up), ...}, ... }, ...}
         self._systematics = _get_relative_from_abs_systematics(
             base_yields, yield_systematics)
-        # we can merge the tagging systematic as recommended by the
-        # b-tagging group
-        if config.get('combine_tagging_syst', False):
-            self._systematics = _combine_systematics(self._systematics)
+
+        # add the relative systematics
         rel_systs = _filter_rel_systematics(
             yields.get(self.relative_systematics_key, {}), missing_syst)
         _update_with_relative_systematics(
@@ -456,8 +457,7 @@ class Workspace(object):
 
 
 # _________________________________________________________________________
-# systematic calculation (convert yields to relative systematics,
-# combine b-tagging systematics, etc...)
+# systematic calculation (convert yields to relative systematics, etc...)
 
 def _get_signal_systematics(rel_systs, syst_list, direction):
     """
@@ -526,9 +526,6 @@ def _get_relative_from_abs_systematics(base_yields, systematic_yields):
                 if updown == (None, None):
                     continue
                 rel_systs[region][process][syst] = updown
-
-    # NOTE: we'll probably have to hack in a lot more systematics here
-    # by hand...
 
     return rel_systs
 
@@ -659,53 +656,6 @@ def _update_with_relative_systematics(existing, rel_systs, all_proc):
                     exist_proc[sys_name] = process_dict
 
 
-# _________________________________________________________________________
-# systematic combination (add b-tagging systematics in quadrature)
-
-def _combine_systematics(relative_systematics):
-    """do all the ugly combination work here"""
-    try:
-        relative_systematics = _combine_tagging_systematics(
-            relative_systematics)
-    except KeyError as err:
-        # print a warning if the key error is just a missing btagging
-        # systematic
-        if err.args[0] not in 'bcut':
-            raise
-        warnings.warn(
-            ("missing tagging systematic '{}' won't combine "
-             "tagging systematics").format(
-                err.args[0]), stacklevel=2)
-    return relative_systematics
-
-def _combine_tagging_systematics(relative_systematics):
-    """
-    The b-tagging group recommends adding all the systematics in
-    quadrature and fitting with a single tagging systematic.
-    """
-    out_rel = {}
-
-    # the relative systematics are keyed as
-    # {region: {process:{systematic: (down, up), ...}, ... }, ...}
-    for region, procdic in relative_systematics.iteritems():
-        reg_systs = {}
-        for process, sysdict in procdic.iteritems():
-            tag_sum2 = 0.0
-            for sys in 'bcut':
-                down, up = sysdict[sys]
-                tag_sum2 += (down - 1)**2 + (up - 1)**2
-
-            # ACHTUNG: not sure if we should divide by 2 _before_ taking
-            # the square root...
-            tag_sys = tag_sum2**0.5 / 2.0
-            reg_systs[process] = {'ctag': (1 - tag_sys, 1 + tag_sys)}
-            for sys, downup in sysdict.iteritems():
-                if sys not in 'bcut':
-                    reg_systs[process][sys] = downup
-        out_rel[region] = reg_systs
-    return out_rel
-
-
 # __________________________________________________________________________
 # helper functions
 
@@ -729,9 +679,7 @@ def _set_value(sample, value, err):
     """
     Workaround for the crashing Sample.SetValue method.
 
-    Probably leaks memory, I don't care any more, because ROOT is designed
-    to leak memory. It's designed to embody every shit programming
-    paradigm, and invent a few more, yet we still use it.
+    Probably leaks memory, but good luck avoiding this with ROOT.
     $@! FURTHER EXPLETIVES REMOVED BY AUTHOR !@$
     """
     from ROOT import TH1D

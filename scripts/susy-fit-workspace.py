@@ -46,67 +46,89 @@ def run():
     parser.add_argument('-v', '--verbose', action='store_true')
     # parse inputs and run
     args = parser.parse_args(sys.argv[1:])
-    _multispaces(args)
+    _book_workspaces(args)
 
-def _multispaces(config):
+# _________________________________________________________________________
+# main workspace booking function
+
+def _book_workspaces(args):
     """book one workspace for each signal point"""
 
-    with open(config.yields_file) as yields_yml:
+    with open(args.yields_file) as yields_yml:
         yields = yaml.load(yields_yml)
 
     # get / generate the fit configuration
-    fit_configs = _get_config(config.fit_config, yields, config.subset)
+    fit_configs = _get_config(args.fit_config, yields, args.subset)
     if not fit_configs:
-        print 'wrote {}, quitting...'.format(config.fit_config)
+        print 'wrote {}, quitting...'.format(args.fit_config)
         return
 
     signal_points, bgs = get_signal_points_and_backgrounds(yields)
     print 'using backgrounds: {}'.format(', '.join(bgs))
-    if config.background_only:
+    if args.background_only:
         signal_points = []
 
+    # in most cases, the workspace setup doesn't actually need to run
+    # the HistFitter routines: what's given in HistFactory is enough
+    run_histfitter = args.after_fit or args.upper_limit
+
     # setup fitting options from command line
-    run_histfitter = config.after_fit or config.upper_limit
-    misc_config = dict(do_hf=run_histfitter)
-    # most options are passed through unchanged
+    cl_config = dict(do_hf=run_histfitter)
     pass_options = [
         'out_dir', 'debug', 'verbose', 'blind', 'injection',
         'signal_systematic']
-    misc_config.update({x:getattr(config, x) for x in pass_options})
+    cl_config.update({x:getattr(args, x) for x in pass_options})
 
     # loop ovar all signal points and fit configurations.
-    for cfg_name, fit_cfg in fit_configs.iteritems():
+    for cfg in fit_configs.iteritems():
+        cfg_name, fit_cfg = cfg
+
         print 'booking background with config {}'.format(cfg_name)
-        cfg = cfg_name, fit_cfg
-        # blank signal point means no point (but use SR in fit)
-        _book_signal_point(yields, '', cfg, misc_config)
-        # 'CR_ONLY' means don't use SR in fit
-        _book_signal_point(yields, 'CR_ONLY', cfg, misc_config)
-        # DISCOVERY means set signal to 1 in SR only
-        _book_signal_point(yields, DISCOVERY, cfg, misc_config)
+        _book_background_fits(yields, cfg, cl_config)
+
+        # skip signal points if doing 'up' or 'down' with no given sig systs
+        if not fit_cfg.get('signal_systematics') and args.signal_systematic:
+            continue
+
         for signal_point in signal_points:
             print 'booking signal point {} with {} config'.format(
                 signal_point, cfg_name)
-            _book_signal_point(yields, signal_point, cfg, misc_config)
+            _book_signal_point(yields, signal_point, cfg, cl_config)
 
-    # relies on HistFitter's global variables, has to be run after
-    # booking a bunch of workspaces.
-    if config.upper_limit:
-        pfx = config.signal_systematic or 'nominal'
-        dirpfx = join(dirname(config.fit_config), pfx)
+    # this relies on HistFitter's global variables, has to be run
+    # after booking a bunch of workspaces.
+    if args.upper_limit:
+        pfx = args.signal_systematic or 'nominal'
+        dirpfx = join(dirname(args.fit_config), pfx)
         print 'calculating {} upper limits (may take a while)'.format(dirpfx)
-        do_upper_limits(verbose=config.verbose, prefix=dirpfx)
+        do_upper_limits(verbose=args.verbose, prefix=dirpfx)
 
-def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
+def _book_background_fits(yields, cfg, cl_config):
+    """various types of 'background only' fits"""
+
+    # everything here calls the method below, with some special version
+    # of the signal point
+
+    # blank signal point means no point (but use SR in fit)
+    _book_signal_point(yields, '', cfg, cl_config)
+    # 'CR_ONLY' means don't use SR in fit
+    _book_signal_point(yields, 'CR_ONLY', cfg, cl_config)
+    # DISCOVERY means set signal to 1 in SR only
+    _book_signal_point(yields, DISCOVERY, cfg, cl_config)
+
+
+def _book_signal_point(yields, signal_point, fit_configuration, cl_config):
     """
-    Book the workspace for one signal point. If the point is ''
+    Book the workspace for one signal point. If the point is '' we run
+    a background only fit.
     """
     cfg_name, fit_config = fit_configuration
     import ROOT
     # TODO: this leaks memory like crazy, known HistFactory bug
-    fit = Workspace(yields, fit_config, misc_config)
+    fit = Workspace(yields, fit_config, cl_config)
 
     fit_sr = True
+    # hackish way to specify no signal point AND no signal region
     if signal_point == 'CR_ONLY':
         fit_sr = False
         signal_point = ''
@@ -123,17 +145,17 @@ def _book_signal_point(yields, signal_point, fit_configuration, misc_config):
         for vr in fit_config.get('validation_regions', []):
             fit.add_vr(vr)
 
-    out_dir = join(misc_config['out_dir'], cfg_name)
+    out_dir = join(cl_config['out_dir'], cfg_name)
     if not isdir(out_dir):
         os.makedirs(out_dir)
 
     fit.save_workspace(out_dir)
 
-    if not misc_config['do_hf']:
+    if not cl_config['do_hf']:
         return
 
     # here be black magic
-    fit.do_histfitter_magic(out_dir, verbose=misc_config['verbose'])
+    fit.do_histfitter_magic(out_dir, verbose=cl_config['verbose'])
 
 # _______________________________________________________________________
 # helpers
@@ -149,7 +171,6 @@ def _get_config(cfg_name, yields_dict, subset=None):
             x for x in yields_dict[_nom_yields_key] if x.startswith('cr_')
             ],
         'signal_regions': ['signal_mct150'],
-        'combine_tagging': False,
         'fixed_backgrounds': ['other'],
         'systematics': list(all_syst),
         'combined_backgrounds': {'other':['singleTop']},
